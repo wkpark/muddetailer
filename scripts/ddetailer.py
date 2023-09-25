@@ -561,6 +561,8 @@ class DetectionDetailerScript(scripts.Script):
             p.setup_prompts()
             p.all_seeds = [ seed ]
 
+            p._inpainting = True
+
             # clear tqdm
             shared.total_tqdm.clear()
 
@@ -742,6 +744,7 @@ class DetectionDetailerScript(scripts.Script):
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip):
 
         p._idx = getattr(p, "_idx", -1) + 1
+        p._inpainting = getattr(p, "_inpainting", False)
 
         seed, subseed = self.get_seed(p)
         p.seed = seed
@@ -835,6 +838,10 @@ class DetectionDetailerScript(scripts.Script):
         p.do_not_save_samples = True
 
         p._disable_ddetailer = True
+
+        # reset tqdm for inpainting helper mode
+        if p_txt._inpainting:
+            shared.total_tqdm.updateTotal(0)
 
         output_images = []
         state.job_count = ddetail_count
