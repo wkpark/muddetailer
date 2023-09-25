@@ -530,7 +530,7 @@ class DetectionDetailerScript(scripts.Script):
             # try to read info from image
             info, _ = images.read_info_from_image(image)
 
-            params = []
+            params = {}
             if info is not None:
                 params = parse_prompt(info)
                 if "Seed" in params:
@@ -573,9 +573,12 @@ class DetectionDetailerScript(scripts.Script):
             # update info
             info = outimage.info["parameters"]
             nparams = parse_prompt(info)
-            for k, v in nparams.items():
-                if "DDetailer" in k:
-                    params[k] = v
+            if len(params) > 0:
+                for k, v in nparams.items():
+                    if "DDetailer" in k:
+                        params[k] = v
+            else:
+                params = nparams
 
             prompt = params.pop("Prompt")
             neg_prompt = params.pop("Negative prompt")
