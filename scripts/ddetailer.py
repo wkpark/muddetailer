@@ -11,6 +11,7 @@ from pathlib import Path
 from copy import copy, deepcopy
 from modules import processing, images
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
+from modules.call_queue import wrap_gradio_gpu_call, wrap_queued_call, wrap_gradio_call
 from modules.generation_parameters_copypaste import parse_generation_parameters
 from modules.processing import Processed, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img
 from modules.shared import opts, cmd_opts, state
@@ -351,6 +352,8 @@ class DetectionDetailerScript(scripts.Script):
                         with gr.Row():
                             dd_run_inpaint = gr.Button(value='Inpaint', interactive=True)
 
+                    dummy_component = gr.Label(visible=False)
+
             dd_model_a.change(
                 lambda modelname: {
                     dd_model_b:gr_show( modelname != "None" ),
@@ -512,7 +515,7 @@ class DetectionDetailerScript(scripts.Script):
                 ret.append(DD.img2img_components[elem_id])
             return ret
 
-        def run_inpaint(input, gallery, prompt, negative_prompt, styles, steps, sampler_name, batch_count, batch_size,
+        def run_inpaint(task, tab, input, gallery, prompt, negative_prompt, styles, steps, sampler_name, batch_count, batch_size,
                 cfg_scale, width, height, seed, denoising_strength, *all_args):
 
             # image from gr.Image() or gr.Gallery()
@@ -654,15 +657,19 @@ class DetectionDetailerScript(scripts.Script):
                 with demo:
                     if not is_img2img:
                         dd_run_inpaint.click(
-                            fn=run_inpaint,
-                            inputs=[dd_image, DD.components["txt2img_gallery"], *get_txt2img_components(), *all_args, *script_args],
-                            outputs=[dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], DD.components["html_info_txt2img"]]
+                            fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
+                            _js="submit",
+                            inputs=[ dummy_component, dummy_component, dd_image, DD.components["txt2img_gallery"], *get_txt2img_components(), *all_args, *script_args],
+                            outputs=[dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], DD.components["html_info_txt2img"]],
+                            show_progress=False,
                         )
                     else:
                         dd_run_inpaint.click(
-                            fn=run_inpaint,
-                            inputs=[DD.components["img2img_image"], DD.components["img2img_gallery"], *get_img2img_components(), *all_args, *script_args],
-                            outputs=[DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_img2img"], DD.components["html_info_img2img"]]
+                            fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
+                            _js="submit_img2img",
+                            inputs=[ dummy_component, dummy_component, DD.components["img2img_image"], DD.components["img2img_gallery"], *get_img2img_components(), *all_args, *script_args],
+                            outputs=[DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_img2img"], DD.components["html_info_img2img"]],
+                            show_progress=False,
                         )
 
             self.init_on_app_started = True
