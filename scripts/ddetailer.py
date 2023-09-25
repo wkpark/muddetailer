@@ -172,11 +172,11 @@ def ddetailer_extra_params(
 
     if dd_clipskip == 0:
         params.pop("DDetailer CLIP skip")
-    if dd_checkpoint in [ "Default", "None" ]:
+    if dd_checkpoint in [ "Use same checkpoint", "Default", "None" ]:
         params.pop("DDetailer checkpoint")
-    if dd_vae in [ "Default", "None" ]:
+    if dd_vae in [ "Use same VAE", "Default", "None" ]:
         params.pop("DDetailer VAE")
-    if dd_sampler in [ "Default", "None" ]:
+    if dd_sampler in [ "Use same sampler", "Default", "None" ]:
         params.pop("DDetailer sampler")
 
     return params
@@ -322,21 +322,21 @@ class DetectionDetailerScript(scripts.Script):
                     dd_inpaint_full_res_padding = gr.Slider(label='Inpaint at full resolution padding, pixels ', minimum=0, maximum=256, step=4, value=32, visible=(not is_img2img))
 
                     with gr.Accordion("Advanced options", open=False) as advanced:
-                        gr.HTML(value="<p>Low level options ('0' or 'Default' means use default setting value)</p>")
+                        gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
                         with gr.Column():
                             with gr.Row():
                                 dd_noise_multiplier = gr.Slider(label='Use noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0)
                                 dd_cfg_scale = gr.Slider(label='Use CFG Scale', minimum=0, maximum=30, step=0.5, value=0)
                             with gr.Row():
-                                dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Default"] + sd_samplers.visible_sampler_names(), value="Default")
+                                dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sd_samplers.visible_sampler_names(), value="Use same sampler")
                                 dd_steps = gr.Slider(label='Use sampling steps', minimum=0, maximum=120, step=1, value=0)
                         with gr.Column():
                             with gr.Row():
-                                dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Default"] + sd_models.checkpoint_tiles(), value="Default")
-                                create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Default"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
+                                dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint")
+                                create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
 
-                                dd_vae = gr.Dropdown(choices=["Default"] + list(sd_vae.vae_dict), value="Default", label="Use VAE", elem_id="dd_vae")
-                                create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Default"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
+                                dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae")
+                                create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
                             dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0)
 
@@ -450,7 +450,7 @@ class DetectionDetailerScript(scripts.Script):
 
             dd_checkpoint.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same checkpoint", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_checkpoint],
                 outputs=[advanced],
@@ -459,7 +459,7 @@ class DetectionDetailerScript(scripts.Script):
 
             dd_vae.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same VAE", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_vae],
                 outputs=[advanced],
@@ -468,7 +468,7 @@ class DetectionDetailerScript(scripts.Script):
 
             dd_sampler.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same sampler", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_sampler],
                 outputs=[advanced],
@@ -756,14 +756,14 @@ class DetectionDetailerScript(scripts.Script):
         info = ""
         ddetail_count = 1
 
-        sampler_name = dd_sampler if dd_sampler not in [ "Default", "None" ] else p.sampler_name
+        sampler_name = dd_sampler if dd_sampler not in [ "Use same sampler", "Default", "None" ] else p.sampler_name
         if sampler_name in ["PLMS", "UniPC"]:
             sampler_name = "Euler"
 
         # setup override settings
-        checkpoint = dd_checkpoint if dd_checkpoint not in [ "Default", "None" ] else None
+        checkpoint = dd_checkpoint if dd_checkpoint not in [ "Use same checkpoint", "Default", "None" ] else None
         clipskip = dd_clipskip if dd_clipskip > 0 else None
-        vae = dd_vae if dd_vae not in [ "Default", "None" ] else None
+        vae = dd_vae if dd_vae not in [ "Use same VAE", "Default", "None" ] else None
         override_settings = {}
         if checkpoint is not None:
             override_settings["sd_model_checkpoint"] = checkpoint
