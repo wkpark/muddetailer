@@ -339,6 +339,24 @@ class DetectionDetailerScript(scripts.Script):
                                 create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
                             dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0)
+                        with gr.Column():
+                            with gr.Row():
+                                advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
+                        advanced_reset.select(
+                            lambda: {
+                                dd_noise_multiplier: 0,
+                                dd_cfg_scale: 0,
+                                dd_steps: 0,
+                                dd_clipskip: 0,
+                                dd_sampler: "Use same sampler",
+                                dd_checkpoint: "Use same checkpoint",
+                                dd_vae: "Use same VAE",
+                                advanced_reset: False,
+                            },
+                            inputs=[],
+                            outputs=[advanced_reset, dd_noise_multiplier, dd_cfg_scale, dd_sampler, dd_steps, dd_checkpoint, dd_vae, dd_clipskip],
+                            show_progress=False,
+                        )
 
                 with gr.Group(visible=False) as operation:
                     gr.HTML(value="<p>A-B operation:</p>")
