@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import cv2
 from PIL import Image
@@ -531,7 +532,7 @@ class DetectionDetailerScript(scripts.Script):
 
             params = []
             if info is not None:
-                params = parse_generation_parameters(info)
+                params = parse_prompt(info)
                 if "Seed" in params:
                     seed = int(params["Seed"])
 
@@ -569,16 +570,10 @@ class DetectionDetailerScript(scripts.Script):
             outimage = pp.image
             # update info
             info = outimage.info["parameters"]
-            nparams = parse_generation_parameters(info)
+            nparams = parse_prompt(info)
             for k, v in nparams.items():
                 if "DDetailer" in k:
                     params[k] = v
-
-            def quote(text):
-                if ',' not in str(text) and '\n' not in str(text) and ':' not in str(text):
-                    return text
-
-                return json.dumps(text, ensure_ascii=False)
 
             prompt = params.pop("Prompt")
             neg_prompt = params.pop("Negative prompt")
@@ -1013,6 +1008,63 @@ class DetectionDetailerScript(scripts.Script):
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip)
 
         p.close()
+
+def quote(text):
+    if ',' not in str(text) and '\n' not in str(text) and ':' not in str(text):
+        return text
+
+    return json.dumps(text, ensure_ascii=False)
+
+def unquote(text):
+    if len(text) == 0 or text[0] != '"' or text[-1] != '"':
+        return text
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return text
+
+# from modules/generation_parameters_copypaste.py
+re_param_code = r'\s*([\w ]+):\s*("(?:\\"[^,]|\\"|\\|[^\"])+"|[^,]*)(?:,|$)'
+re_param = re.compile(re_param_code)
+
+def parse_prompt(x: str):
+    """from parse_generation_parameters(x: str)"""
+    res = {}
+
+    prompt = ""
+    negative_prompt = ""
+
+    done_with_prompt = False
+
+    *lines, lastline = x.strip().split("\n")
+    if len(re_param.findall(lastline)) < 3:
+        lines.append(lastline)
+        lastline = ''
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith("Negative prompt:"):
+            done_with_prompt = True
+            line = line[16:].strip()
+        if done_with_prompt:
+            negative_prompt += ("" if negative_prompt == "" else "\n") + line
+        else:
+            prompt += ("" if prompt == "" else "\n") + line
+
+    for k, v in re_param.findall(lastline):
+        try:
+            if v[0] == '"' and v[-1] == '"':
+                v = unquote(v)
+
+            res[k] = v
+        except Exception:
+            print(f"Error parsing \"{k}: {v}\"")
+
+    res["Prompt"] = prompt
+    res["Negative prompt"] = negative_prompt
+
+    return res
 
 def modeldataset(model_shortname):
     path = modelpath(model_shortname)
