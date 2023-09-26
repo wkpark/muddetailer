@@ -25,6 +25,7 @@ dd_models_path = os.path.join(models_path, "mmdet")
 
 scriptdir = scripts.basedir()
 
+models_list = {}
 def list_models(model_path):
         model_list = modelloader.load_models(model_path=model_path, ext_filter=[".pth"])
         
@@ -45,7 +46,19 @@ def list_models(model_path):
         
         models = []
         for filename in model_list:
-            h = model_hash(filename)
+            if filename not in models_list:
+                h = model_hash(filename)
+                mtime = os.path.getmtime(os.path.join(model_path, filename))
+                models_list[filename] = { "hash": h, "mtime": mtime }
+            else:
+                h = models_list[filename]["hash"]
+                mtime = os.path.getmtime(os.path.join(model_path, filename))
+                old_mtime = models_list[filename]["mtime"]
+                if mtime > old_mtime:
+                    # update hash, mtime
+                    h = model_hash(filename)
+                    models_list[filename] = { "hash": h, "mtime": mtime }
+
             title, short_model_name = modeltitle(filename, h)
             models.append(title)
         
@@ -266,6 +279,7 @@ class DetectionDetailerScript(scripts.Script):
                 with gr.Tab("Primary"):
                     with gr.Row():
                         dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_a")
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
 
                     with gr.Group():
@@ -298,6 +312,7 @@ class DetectionDetailerScript(scripts.Script):
                 with gr.Tab("Secondary"):
                     with gr.Row():
                         dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=False, type="value")
+                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_b")
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
 
                     with gr.Group():
