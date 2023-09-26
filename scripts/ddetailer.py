@@ -67,9 +67,27 @@ def startup():
 
     bbox_path = os.path.join(dd_models_path, "bbox")
     segm_path = os.path.join(dd_models_path, "segm")
-    if (len(list_models(dd_models_path)) == 0):
-        print("No detection models found, downloading...")
-        load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/bbox/mmdet_anime-face_yolov3.pth", bbox_path)
+    list_model = list_models(dd_models_path)
+
+    required = [
+        os.path.join(bbox_path, "mmdet_anime-face_yolov3.pth"),
+        os.path.join(segm_path, "mmdet_dd-person_mask2former.pth"),
+    ]
+    need_download = False
+    for model in required:
+        if not os.path.exists(model):
+            need_download = True
+            break
+    while need_download:
+        if len(list_model) == 0:
+            print("No detection models found, downloading...")
+        else:
+            print("Check detection models and downloading...")
+
+        if not os.path.exists(os.path.join(bbox_path, "mmdet_anime-face_yolov3.pth")):
+            load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/bbox/mmdet_anime-face_yolov3.pth", bbox_path)
+        if os.path.exists(os.path.join(segm_path, "mmdet_dd-person_mask2former.pth")):
+            break
         if legacy:
             load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", segm_path)
         else:
@@ -77,6 +95,7 @@ def startup():
                 "https://download.openmmlab.com/mmdetection/v3.0/mask2former/mask2former_r50_8xb2-lsj-50e_coco/mask2former_r50_8xb2-lsj-50e_coco_20220506_191028-41b088b6.pth",
                 segm_path,
                 file_name="mmdet_dd-person_mask2former.pth")
+        break
 
     print("Check config files...")
     config_dir = os.path.join(scripts.basedir(), "config")
