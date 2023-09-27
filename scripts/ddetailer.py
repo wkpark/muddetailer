@@ -144,12 +144,12 @@ def gr_open(open=True):
 def ddetailer_extra_params(
     use_prompt_edit,
     use_prompt_edit_2,
-    dd_model_a,
+    dd_model_a, dd_classes_a,
     dd_conf_a, dd_dilation_factor_a,
     dd_offset_x_a, dd_offset_y_a,
     dd_prompt, dd_neg_prompt,
     dd_preprocess_b, dd_bitwise_op,
-    dd_model_b,
+    dd_model_b, dd_classes_b,
     dd_conf_b, dd_dilation_factor_b,
     dd_offset_x_b, dd_offset_y_b,
     dd_prompt_2, dd_neg_prompt_2,
@@ -183,9 +183,13 @@ def ddetailer_extra_params(
         "DDetailer VAE": dd_vae,
         "DDetailer CLIP skip": dd_clipskip,
     }
+    if len(dd_classes_a) > 0:
+        params["DDetailer classes a"] = ",".join(dd_classes_a),
 
     if dd_model_b != "None":
         params["DDetailer model b"] = dd_model_b
+        if len(dd_classes_b) > 0:
+            params["DDetailer classes b"] = ",".join(dd_classes_b)
         params["DDetailer preprocess b"] = dd_preprocess_b
         params["DDetailer bitwise"] = dd_bitwise_op
         params["DDetailer conf b"] = dd_conf_b
@@ -263,6 +267,24 @@ class DetectionDetailerScript(scripts.Script):
         if elem_id in [ "img2img_gallery", "html_info_img2img", "generation_info_img2img", "txt2img_gallery", "html_info_txt2img", "generation_info_txt2img" ]:
             DD.components[elem_id] = component
 
+    def show_classes(self, modelname, classes):
+        if modelname == "None":
+            return gr.update(visible=False, choices=[], value=[])
+
+        dataset = modeldataset(modelname)
+        if dataset == "coco":
+            all_classes = get_classes(dataset)
+            # check duplicates
+            if len(classes) > 0:
+                cls = list(set(classes) & set(all_classes))
+                if set(cls) == set(classes):
+                    return gr.update(visible=True, choices=["None"] + all_classes)
+                else:
+                    return gr.update(visible=True, choices=["None"] + all_classes, value=cls)
+            return gr.update(visible=True, choices=["None"] + all_classes, value=[all_classes[0]])
+        else:
+            return gr.update(visible=False, choices=[], value=[])
+
     def ui(self, is_img2img):
         import modules.ui
 
@@ -280,6 +302,8 @@ class DetectionDetailerScript(scripts.Script):
                     with gr.Row():
                         dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
                         create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_a")
+                        dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
+                    with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
 
                     with gr.Group():
@@ -309,10 +333,18 @@ class DetectionDetailerScript(scripts.Script):
                                 dd_offset_x_a = gr.Slider(label='X offset (A)', minimum=-200, maximum=200, step=1, value=0)
                                 dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0)
 
+                    dd_model_a.change(
+                        fn=self.show_classes,
+                        inputs=[dd_model_a, dd_classes_a],
+                        outputs=[dd_classes_a],
+                    )
+
                 with gr.Tab("Secondary"):
                     with gr.Row():
                         dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=False, type="value")
                         create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_b")
+                        dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
+                    with gr.Row():
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
 
                     with gr.Group():
@@ -344,6 +376,12 @@ class DetectionDetailerScript(scripts.Script):
                                 dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0)
                             with gr.Row():
                                 dd_preprocess_b = gr.Checkbox(label='Inpaint model B detections before inpaint model A detections')
+
+                    dd_model_b.change(
+                        fn=self.show_classes,
+                        inputs=[dd_model_b, dd_classes_b],
+                        outputs=[dd_classes_b],
+                    )
 
             with gr.Group(visible=False) as options:
                 gr.HTML(value="<p>Inpainting options:</p>", visible=(not is_img2img))
@@ -423,6 +461,7 @@ class DetectionDetailerScript(scripts.Script):
                 (dd_prompt, "DDetailer prompt"),
                 (dd_neg_prompt, "DDetailer neg prompt"),
                 (dd_model_a, "DDetailer model a"),
+                (dd_classes_a, "DDetailer classes a"),
                 (dd_conf_a, "DDetailer conf a"),
                 (dd_dilation_factor_a, "DDetailer dilation a"),
                 (dd_offset_x_a, "DDetailer offset x a"),
@@ -430,6 +469,7 @@ class DetectionDetailerScript(scripts.Script):
                 (dd_preprocess_b, "DDetailer preprocess b"),
                 (dd_bitwise_op, "DDetailer bitwise"),
                 (dd_model_b, "DDetailer model b"),
+                (dd_classes_b, "DDetailer classes b"),
                 (dd_conf_b, "DDetailer conf b"),
                 (dd_dilation_factor_b, "DDetailer dilation b"),
                 (dd_offset_x_b, "DDetailer offset x b"),
@@ -539,12 +579,12 @@ class DetectionDetailerScript(scripts.Script):
         all_args = [
                     use_prompt_edit,
                     use_prompt_edit_2,
-                    dd_model_a,
+                    dd_model_a, dd_classes_a,
                     dd_conf_a, dd_dilation_factor_a,
                     dd_offset_x_a, dd_offset_y_a,
                     dd_prompt, dd_neg_prompt,
                     dd_preprocess_b, dd_bitwise_op,
-                    dd_model_b,
+                    dd_model_b, dd_classes_b,
                     dd_conf_b, dd_dilation_factor_b,
                     dd_offset_x_b, dd_offset_y_b,
                     dd_prompt_2, dd_neg_prompt_2,
@@ -553,7 +593,7 @@ class DetectionDetailerScript(scripts.Script):
                     dd_cfg_scale, dd_steps, dd_noise_multiplier,
                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
         ]
-        # 29 arguments
+        # 31 arguments
 
         def get_txt2img_components():
             DD = DetectionDetailerScript
@@ -569,7 +609,7 @@ class DetectionDetailerScript(scripts.Script):
             return ret
 
         def run_inpaint(task, tab, input, gallery, prompt, negative_prompt, styles, steps, sampler_name, batch_count, batch_size,
-                cfg_scale, width, height, seed, denoising_strength, *all_args):
+                cfg_scale, width, height, seed, denoising_strength, *_args):
 
             # image from gr.Image() or gr.Gallery()
             image = input if input is not None else import_image_from_gallery(gallery)
@@ -607,7 +647,7 @@ class DetectionDetailerScript(scripts.Script):
             )
             # set scripts and args
             p.scripts = scripts.scripts_txt2img
-            p.script_args = all_args[29:]
+            p.script_args = _args[len(all_args):]
 
             # misc prepare
             p.setup_prompts()
@@ -620,7 +660,7 @@ class DetectionDetailerScript(scripts.Script):
 
             # run inpainting
             pp = scripts.PostprocessImageArgs(image)
-            processed = self._postprocess_image(p, pp, *all_args[:29])
+            processed = self._postprocess_image(p, pp, *_args[:len(all_args)])
             outimage = pp.image
             # update info
             info = outimage.info["parameters"]
@@ -784,12 +824,12 @@ class DetectionDetailerScript(scripts.Script):
             return
 
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
-                     dd_model_a,
+                     dd_model_a, dd_classes_a,
                      dd_conf_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
-                     dd_model_b,
+                     dd_model_b, dd_classes_b,
                      dd_conf_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
@@ -833,12 +873,12 @@ class DetectionDetailerScript(scripts.Script):
         extra_params = ddetailer_extra_params(
             use_prompt_edit,
             use_prompt_edit_2,
-            dd_model_a,
+            dd_model_a, dd_classes_a,
             dd_conf_a, dd_dilation_factor_a,
             dd_offset_x_a, dd_offset_y_a,
             dd_prompt, dd_neg_prompt,
             dd_preprocess_b, dd_bitwise_op,
-            dd_model_b,
+            dd_model_b, dd_classes_b,
             dd_conf_b, dd_dilation_factor_b,
             dd_offset_x_b, dd_offset_y_b,
             dd_prompt_2, dd_neg_prompt_2,
@@ -913,7 +953,7 @@ class DetectionDetailerScript(scripts.Script):
             # Optional secondary pre-processing run
             if (dd_model_b != "None" and dd_preprocess_b): 
                 label_b_pre = "B"
-                results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre)
+                results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b)
                 masks_b_pre = create_segmasks(results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
                 masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
@@ -962,13 +1002,13 @@ class DetectionDetailerScript(scripts.Script):
                 label_a = "A"
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_a = dd_bitwise_op
-                results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a)
+                results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a)
                 masks_a = create_segmasks(results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_b = "B"
-                    results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b)
+                    results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b)
                     masks_b = create_segmasks(results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
                     masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
@@ -1130,7 +1170,7 @@ def parse_prompt(x: str):
 
 def modeldataset(model_shortname):
     path = modelpath(model_shortname)
-    if ("mmdet" in path and "segm" in path):
+    if "mmdet" in path and ("segm" in path or "coco" in model_shortname):
         dataset = 'coco'
     else:
         dataset = 'bbox'
@@ -1275,15 +1315,15 @@ def get_device():
         cuda_device = "cpu"
     return cuda_device
 
-def inference(image, modelname, conf_thres, label):
+def inference(image, modelname, conf_thres, label, classes=None):
     path = modelpath(modelname)
     if ( "mmdet" in path and "bbox" in path ):
-        results = inference_mmdet_bbox(image, modelname, conf_thres, label)
+        results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes)
     elif ( "mmdet" in path and "segm" in path):
-        results = inference_mmdet_segm(image, modelname, conf_thres, label)
+        results = inference_mmdet_segm(image, modelname, conf_thres, label, classes)
     return results
 
-def inference_mmdet_segm(image, modelname, conf_thres, label):
+def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -1327,7 +1367,19 @@ def inference_mmdet_segm(image, modelname, conf_thres, label):
         filter_inds = np.where(mmdet_results.scores > conf_thres)[0]
         results = [[],[],[],[]]
 
+    # check selected classes
+    if type(sel_classes) is str:
+        sel_classes = [sel_classes]
+    if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
+        # "None" selected. in this case, get all dectected classes
+        sel_classes = None
+
     for i in filter_inds:
+        if sel_classes is not None:
+            cls = classes[labels[i]]
+            if cls not in sel_classes:
+                continue
+
         results[0].append(label + "-" + classes[labels[i]])
         results[1].append(bboxes[i])
         results[2].append(segms[i])
@@ -1336,7 +1388,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label):
 
     return results
 
-def inference_mmdet_bbox(image, modelname, conf_thres, label):
+def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -1365,6 +1417,11 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label):
         cv2_mask_bool = cv2_mask.astype(bool)
         segms.append(cv2_mask_bool)
 
+    dataset = modeldataset(modelname)
+    if dataset == "coco":
+        classes = get_classes(dataset)
+    else:
+        classes = None
     if mmcv_legacy:
         n,m = results[0].shape
     else:
@@ -1375,17 +1432,35 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label):
         else:
             return [[],[],[],[]]
     if mmcv_legacy:
+        labels = None
         bboxes = np.vstack(results[0])
         filter_inds = np.where(bboxes[:,-1] > conf_thres)[0]
         results = [[],[],[]]
     else:
+        labels = output.labels
         bboxes = output.bboxes.numpy()
         scores = output.scores.numpy()
         filter_inds = np.where(scores > conf_thres)[0]
         results = [[],[],[],[]]
 
+    # check selected classes
+    if type(sel_classes) is str:
+        sel_classes = [sel_classes]
+    if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
+        # "None" selected. in this case, get all dectected classes
+        sel_classes = None
+
     for i in filter_inds:
-        results[0].append(label)
+        lab = label
+        if sel_classes is not None and labels is not None and classes is not None:
+            cls = classes[labels[i]]
+            if cls not in sel_classes:
+                continue
+            lab += "-" + cls
+        elif labels is not None and classes is not None:
+            lab += "-" + classes[labels[i]]
+
+        results[0].append(lab)
         results[1].append(bboxes[i])
         results[2].append(segms[i])
         if not mmcv_legacy:
@@ -1393,4 +1468,19 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label):
 
     return results
 
+def on_infotext_pasted(infotext, results):
+    updates = {}
+    for k, v in results.items():
+        if not k.startswith("DDetailer"):
+            continue
+
+        if k.find(" classes ") > 0:
+            if v[0] == '"' and v[-1] == '"':
+                v = v[1:-1]
+            arr = v.split(",")
+            updates[k] = arr
+
+    results.update(updates)
+
 script_callbacks.on_ui_settings(on_ui_settings)
+script_callbacks.on_infotext_pasted(on_infotext_pasted)
