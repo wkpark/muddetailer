@@ -86,11 +86,25 @@ def startup():
         os.path.join(bbox_path, "mmdet_anime-face_yolov3.pth"),
         os.path.join(segm_path, "mmdet_dd-person_mask2former.pth"),
     ]
+
+    optional = [
+        (bbox_path, "face_yolov8n.pth"),
+        (bbox_path, "face_yolov8s.pth"),
+        (bbox_path, "hand_yolov8n.pth"),
+        (bbox_path, "hand_yolov8s.pth"),
+    ]
+
     need_download = False
     for model in required:
         if not os.path.exists(model):
             need_download = True
             break
+
+    for path, model in optional:
+        if not os.path.exists(os.path.join(path, model)):
+            need_download = True
+            break
+
     while need_download:
         if len(list_model) == 0:
             print("No detection models found, downloading...")
@@ -99,15 +113,24 @@ def startup():
 
         if not os.path.exists(os.path.join(bbox_path, "mmdet_anime-face_yolov3.pth")):
             load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/bbox/mmdet_anime-face_yolov3.pth", bbox_path)
-        if os.path.exists(os.path.join(segm_path, "mmdet_dd-person_mask2former.pth")):
-            break
+        if not os.path.exists(os.path.join(segm_path, "mmdet_dd-person_mask2former.pth")):
+            if legacy:
+                load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", segm_path)
+            else:
+                load_file_from_url(
+                    "https://download.openmmlab.com/mmdetection/v3.0/mask2former/mask2former_r50_8xb2-lsj-50e_coco/mask2former_r50_8xb2-lsj-50e_coco_20220506_191028-41b088b6.pth",
+                    segm_path,
+                    file_name="mmdet_dd-person_mask2former.pth")
+
         if legacy:
-            load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", segm_path)
-        else:
-            load_file_from_url(
-                "https://download.openmmlab.com/mmdetection/v3.0/mask2former/mask2former_r50_8xb2-lsj-50e_coco/mask2former_r50_8xb2-lsj-50e_coco_20220506_191028-41b088b6.pth",
-                segm_path,
-                file_name="mmdet_dd-person_mask2former.pth")
+            break
+
+        # optional models
+        huggingface_src_path = "https://huggingface.co/wkpark/mmyolo-yolov8/resolve/main"
+        for path, model in optional:
+            if not os.path.exists(os.path.join(path, model)):
+                load_file_from_url(f"{huggingface_src_path}/{model}", path)
+
         break
 
     print("Check config files...")
@@ -127,6 +150,20 @@ def startup():
             print(f"Copy config file: {confpy}..")
             shutil.copy(conf, dest)
         destdir = segm_path
+
+    if legacy:
+        print("Done")
+        return
+
+    configs = [
+        (bbox_path, ["face_yolov8n.py", "face_yolov8s.py", "hand_yolov8n.py", "hand_yolov8s.py", "default_runtime.py", "yolov8_s_syncbn_fast_8xb16-500e_coco.py"]),
+    ]
+    for destdir, files in configs:
+        for file in files:
+            if not os.path.exists(os.path.join(destdir, file)):
+                confpy = os.path.join(config_dir, file)
+                print(f"Copy config file: {confpy}..")
+                shutil.copy(confpy, destdir)
 
     print("Done")
 
