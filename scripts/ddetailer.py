@@ -200,61 +200,61 @@ def ddetailer_extra_params(
     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
 ):
     params = {
-        "DDetailer use prompt edit": use_prompt_edit,
-        "DDetailer use prompt edit 2": use_prompt_edit_2,
-        "DDetailer prompt": dd_prompt,
-        "DDetailer neg prompt": dd_neg_prompt,
-        "DDetailer prompt 2": dd_prompt_2,
-        "DDetailer neg prompt 2": dd_neg_prompt_2,
-        "DDetailer model a": dd_model_a,
-        "DDetailer conf a": dd_conf_a,
-        "DDetailer dilation a": dd_dilation_factor_a,
-        "DDetailer offset x a": dd_offset_x_a,
-        "DDetailer offset y a": dd_offset_y_a,
-        "DDetailer mask blur": dd_mask_blur,
-        "DDetailer denoising": dd_denoising_strength,
-        "DDetailer inpaint full": dd_inpaint_full_res,
-        "DDetailer inpaint padding": dd_inpaint_full_res_padding,
+        "MuDDetailer use prompt edit": use_prompt_edit,
+        "MuDDetailer use prompt edit 2": use_prompt_edit_2,
+        "MuDDetailer prompt": dd_prompt,
+        "MuDDetailer neg prompt": dd_neg_prompt,
+        "MuDDetailer prompt 2": dd_prompt_2,
+        "MuDDetailer neg prompt 2": dd_neg_prompt_2,
+        "MuDDetailer model a": dd_model_a,
+        "MuDDetailer conf a": dd_conf_a,
+        "MuDDetailer dilation a": dd_dilation_factor_a,
+        "MuDDetailer offset x a": dd_offset_x_a,
+        "MuDDetailer offset y a": dd_offset_y_a,
+        "MuDDetailer mask blur": dd_mask_blur,
+        "MuDDetailer denoising": dd_denoising_strength,
+        "MuDDetailer inpaint full": dd_inpaint_full_res,
+        "MuDDetailer inpaint padding": dd_inpaint_full_res_padding,
         # DDtailer extension
-        "DDetailer CFG scale": dd_cfg_scale,
-        "DDetailer steps": dd_steps,
-        "DDetailer noise multiplier": dd_noise_multiplier,
-        "DDetailer sampler": dd_sampler,
-        "DDetailer checkpoint": dd_checkpoint,
-        "DDetailer VAE": dd_vae,
-        "DDetailer CLIP skip": dd_clipskip,
+        "MuDDetailer CFG scale": dd_cfg_scale,
+        "MuDDetailer steps": dd_steps,
+        "MuDDetailer noise multiplier": dd_noise_multiplier,
+        "MuDDetailer sampler": dd_sampler,
+        "MuDDetailer checkpoint": dd_checkpoint,
+        "MuDDetailer VAE": dd_vae,
+        "MuDDetailer CLIP skip": dd_clipskip,
     }
     if len(dd_classes_a) > 0:
-        params["DDetailer classes a"] = ",".join(dd_classes_a),
+        params["MuDDetailer classes a"] = ",".join(dd_classes_a),
 
     if dd_model_b != "None":
-        params["DDetailer model b"] = dd_model_b
+        params["MuDDetailer model b"] = dd_model_b
         if len(dd_classes_b) > 0:
-            params["DDetailer classes b"] = ",".join(dd_classes_b)
-        params["DDetailer preprocess b"] = dd_preprocess_b
-        params["DDetailer bitwise"] = dd_bitwise_op
-        params["DDetailer conf b"] = dd_conf_b
-        params["DDetailer dilation b"] = dd_dilation_factor_b
-        params["DDetailer offset x b"] = dd_offset_x_b
-        params["DDetailer offset y b"] = dd_offset_y_b
+            params["MuDDetailer classes b"] = ",".join(dd_classes_b)
+        params["MuDDetailer preprocess b"] = dd_preprocess_b
+        params["MuDDetailer bitwise"] = dd_bitwise_op
+        params["MuDDetailer conf b"] = dd_conf_b
+        params["MuDDetailer dilation b"] = dd_dilation_factor_b
+        params["MuDDetailer offset x b"] = dd_offset_x_b
+        params["MuDDetailer offset y b"] = dd_offset_y_b
 
     if not dd_prompt:
-        params.pop("DDetailer prompt")
+        params.pop("MuDDetailer prompt")
     if not dd_neg_prompt:
-        params.pop("DDetailer neg prompt")
+        params.pop("MuDDetailer neg prompt")
     if not dd_prompt_2:
-        params.pop("DDetailer prompt 2")
+        params.pop("MuDDetailer prompt 2")
     if not dd_neg_prompt_2:
-        params.pop("DDetailer neg prompt 2")
+        params.pop("MuDDetailer neg prompt 2")
 
     if dd_clipskip == 0:
-        params.pop("DDetailer CLIP skip")
+        params.pop("MuDDetailer CLIP skip")
     if dd_checkpoint in [ "Use same checkpoint", "Default", "None" ]:
-        params.pop("DDetailer checkpoint")
+        params.pop("MuDDetailer checkpoint")
     if dd_vae in [ "Use same VAE", "Default", "None" ]:
-        params.pop("DDetailer VAE")
+        params.pop("MuDDetailer VAE")
     if dd_sampler in [ "Use same sampler", "Default", "None" ]:
-        params.pop("DDetailer sampler")
+        params.pop("MuDDetailer sampler")
 
     return params
 
@@ -266,7 +266,7 @@ def dd_list_models():
         # register saved checkpoint_info again
         checkpoint_info.register()
 
-class DetectionDetailerScript(scripts.Script):
+class MuDetectionDetailerScript(scripts.Script):
 
     init_on_after_callback = False
     init_on_app_started = False
@@ -285,13 +285,13 @@ class DetectionDetailerScript(scripts.Script):
         super().__init__()
 
     def title(self):
-        return "Detection Detailer"
+        return "µ Detection Detailer"
     
     def show(self, is_img2img):
         return scripts.AlwaysVisible
 
     def after_component(self, component, **_kwargs):
-        DD = DetectionDetailerScript
+        DD = MuDetectionDetailerScript
 
         elem_id = getattr(component, "elem_id", None)
         if elem_id is None:
@@ -329,7 +329,7 @@ class DetectionDetailerScript(scripts.Script):
     def ui(self, is_img2img):
         import modules.ui
 
-        with gr.Accordion("Detection Detailer", open=False):
+        with gr.Accordion("µ Detection Detailer", open=False):
             with gr.Row():
                 enabled = gr.Checkbox(label="Enable", value=False, visible=True)
 
@@ -342,7 +342,7 @@ class DetectionDetailerScript(scripts.Script):
                 with gr.Tab("Primary"):
                     with gr.Row():
                         dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_a")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"mudd_refresh_model_a")
                         dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
@@ -383,7 +383,7 @@ class DetectionDetailerScript(scripts.Script):
                 with gr.Tab("Secondary"):
                     with gr.Row():
                         dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=False, type="value")
-                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"dd_refresh_model_b")
+                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"mudd_refresh_model_b")
                         dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
@@ -498,34 +498,34 @@ class DetectionDetailerScript(scripts.Script):
             )
 
             self.infotext_fields = (
-                (use_prompt_edit, "DDetailer use prompt edit"),
-                (dd_prompt, "DDetailer prompt"),
-                (dd_neg_prompt, "DDetailer neg prompt"),
-                (dd_model_a, "DDetailer model a"),
-                (dd_classes_a, "DDetailer classes a"),
-                (dd_conf_a, "DDetailer conf a"),
-                (dd_dilation_factor_a, "DDetailer dilation a"),
-                (dd_offset_x_a, "DDetailer offset x a"),
-                (dd_offset_y_a, "DDetailer offset y a"),
-                (dd_preprocess_b, "DDetailer preprocess b"),
-                (dd_bitwise_op, "DDetailer bitwise"),
-                (dd_model_b, "DDetailer model b"),
-                (dd_classes_b, "DDetailer classes b"),
-                (dd_conf_b, "DDetailer conf b"),
-                (dd_dilation_factor_b, "DDetailer dilation b"),
-                (dd_offset_x_b, "DDetailer offset x b"),
-                (dd_offset_y_b, "DDetailer offset y b"),
-                (dd_mask_blur, "DDetailer mask blur"),
-                (dd_denoising_strength, "DDetailer denoising"),
-                (dd_inpaint_full_res, "DDetailer inpaint full"),
-                (dd_inpaint_full_res_padding, "DDetailer inpaint padding"),
-                (dd_cfg_scale, "DDetailer CFG scale"),
-                (dd_steps, "DDetailer steps"),
-                (dd_noise_multiplier, "DDetailer noise multiplier"),
-                (dd_clipskip, "DDetailer CLIP skip"),
-                (dd_sampler, "DDetailer sampler"),
-                (dd_checkpoint, "DDetailer checkpoint"),
-                (dd_vae, "DDetailer VAE"),
+                (use_prompt_edit, "MuDDetailer use prompt edit"),
+                (dd_prompt, "MuDDetailer prompt"),
+                (dd_neg_prompt, "MuDDetailer neg prompt"),
+                (dd_model_a, "MuDDetailer model a"),
+                (dd_classes_a, "MuDDetailer classes a"),
+                (dd_conf_a, "MuDDetailer conf a"),
+                (dd_dilation_factor_a, "MuDDetailer dilation a"),
+                (dd_offset_x_a, "MuDDetailer offset x a"),
+                (dd_offset_y_a, "MuDDetailer offset y a"),
+                (dd_preprocess_b, "MuDDetailer preprocess b"),
+                (dd_bitwise_op, "MuDDetailer bitwise"),
+                (dd_model_b, "MuDDetailer model b"),
+                (dd_classes_b, "MuDDetailer classes b"),
+                (dd_conf_b, "MuDDetailer conf b"),
+                (dd_dilation_factor_b, "MuDDetailer dilation b"),
+                (dd_offset_x_b, "MuDDetailer offset x b"),
+                (dd_offset_y_b, "MuDDetailer offset y b"),
+                (dd_mask_blur, "MuDDetailer mask blur"),
+                (dd_denoising_strength, "MuDDetailer denoising"),
+                (dd_inpaint_full_res, "MuDDetailer inpaint full"),
+                (dd_inpaint_full_res_padding, "MuDDetailer inpaint padding"),
+                (dd_cfg_scale, "MuDDetailer CFG scale"),
+                (dd_steps, "MuDDetailer steps"),
+                (dd_noise_multiplier, "MuDDetailer noise multiplier"),
+                (dd_clipskip, "MuDDetailer CLIP skip"),
+                (dd_sampler, "MuDDetailer sampler"),
+                (dd_checkpoint, "MuDDetailer checkpoint"),
+                (dd_vae, "MuDDetailer VAE"),
             )
 
             dd_model_b.change(
@@ -637,13 +637,13 @@ class DetectionDetailerScript(scripts.Script):
         # 31 arguments
 
         def get_txt2img_components():
-            DD = DetectionDetailerScript
+            DD = MuDetectionDetailerScript
             ret = []
             for elem_id in DD.txt2img_ids:
                 ret.append(DD.txt2img_components[elem_id])
             return ret
         def get_img2img_components():
-            DD = DetectionDetailerScript
+            DD = MuDetectionDetailerScript
             ret = []
             for elem_id in DD.img2img_ids:
                 ret.append(DD.img2img_components[elem_id])
@@ -708,7 +708,7 @@ class DetectionDetailerScript(scripts.Script):
             nparams = parse_prompt(info)
             if len(params) > 0:
                 for k, v in nparams.items():
-                    if "DDetailer" in k:
+                    if "MuDDetailer" in k:
                         params[k] = v
             else:
                 params = nparams
@@ -745,7 +745,7 @@ class DetectionDetailerScript(scripts.Script):
             return None
 
         def on_after_components(component, **kwargs):
-            DD = DetectionDetailerScript
+            DD = MuDetectionDetailerScript
 
             elem_id = getattr(component, "elem_id", None)
             if elem_id is None:
@@ -758,7 +758,7 @@ class DetectionDetailerScript(scripts.Script):
             return len(components) == len(ids) and all(component._id == _id for component, _id in zip(components, ids))
 
         def on_app_started(demo, app):
-            DD = DetectionDetailerScript
+            DD = MuDetectionDetailerScript
 
             for _id, is_txt2img in zip([DD.components["txt2img_generate"]._id, DD.components["img2img_generate"]._id], [True, False]):
                 dependencies = [x for x in demo.dependencies if x["trigger"] == "click" and _id in x["targets"]]
@@ -861,7 +861,7 @@ class DetectionDetailerScript(scripts.Script):
         return script_runner
 
     def process(self, p, *args):
-        if getattr(p, "_disable_ddetailer", False):
+        if getattr(p, "_disable_muddetailer", False):
             return
 
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
@@ -973,7 +973,7 @@ class DetectionDetailerScript(scripts.Script):
         p.do_not_save_grid = True
         p.do_not_save_samples = True
 
-        p._disable_ddetailer = True
+        p._disable_muddetailer = True
 
         # reset tqdm for inpainting helper mode
         if p_txt._inpainting:
@@ -1002,8 +1002,8 @@ class DetectionDetailerScript(scripts.Script):
                     results_b_pre = update_result_masks(results_b_pre, masks_b_pre)
                     segmask_preview_b = create_segmask_preview(results_b_pre, init_image)
                     shared.state.current_image = segmask_preview_b
-                    if ( opts.dd_save_previews):
-                        images.save_image(segmask_preview_b, opts.outdir_ddetailer_previews, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+                    if ( opts.mudd_save_previews):
+                        images.save_image(segmask_preview_b, opts.outdir_muddetailer_previews, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_b_pre)
                     state.job_count += gen_count
                     print(f"Processing {gen_count} model {label_b_pre} detections for output generation {p_txt._idx + 1}.")
@@ -1023,8 +1023,8 @@ class DetectionDetailerScript(scripts.Script):
 
                     for i in range(gen_count):
                         p2.image_mask = masks_b_pre[i]
-                        if ( opts.dd_save_masks):
-                            images.save_image(masks_b_pre[i], opts.outdir_ddetailer_masks, "", start_seed, p2.prompt, opts.samples_format, info=info, p=p2)
+                        if ( opts.mudd_save_masks):
+                            images.save_image(masks_b_pre[i], opts.outdir_muddetailer_masks, "", start_seed, p2.prompt, opts.samples_format, info=info, p=p2)
                         processed = processing.process_images(p2)
 
                         p2.seed = processed.seed + 1
@@ -1074,8 +1074,8 @@ class DetectionDetailerScript(scripts.Script):
                     results_a = update_result_masks(results_a, masks_a)
                     segmask_preview_a = create_segmask_preview(results_a, init_image)
                     shared.state.current_image = segmask_preview_a
-                    if ( opts.dd_save_previews):
-                        images.save_image(segmask_preview_a, opts.outdir_ddetailer_previews, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+                    if ( opts.mudd_save_previews):
+                        images.save_image(segmask_preview_a, opts.outdir_muddetailer_previews, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_a)
                     state.job_count += gen_count
                     print(f"Processing {gen_count} model {label_a} detections for output generation {p_txt._idx + 1}.")
@@ -1089,8 +1089,8 @@ class DetectionDetailerScript(scripts.Script):
 
                     for i in range(gen_count):
                         p.image_mask = masks_a[i]
-                        if ( opts.dd_save_masks):
-                            images.save_image(masks_a[i], opts.outdir_ddetailer_masks, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+                        if ( opts.mudd_save_masks):
+                            images.save_image(masks_a[i], opts.outdir_muddetailer_masks, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                         
                         processed = processing.process_images(p)
                         p.seed = processed.seed + 1
@@ -1129,7 +1129,7 @@ class DetectionDetailerScript(scripts.Script):
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip):
 
-        if getattr(p, "_disable_ddetailer", False):
+        if getattr(p, "_disable_muddetailer", False):
             return
 
         if not enabled:
@@ -1321,10 +1321,10 @@ def combine_masks(masks):
     return combined_mask
 
 def on_ui_settings():
-    shared.opts.add_option("dd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("ddetailer", "Detection Detailer")))
-    shared.opts.add_option("outdir_ddetailer_previews", shared.OptionInfo(f"{scriptdir}/outputs/masks-previews", 'Output directory for mask previews', section=("ddetailer", "Detection Detailer")))
-    shared.opts.add_option("dd_save_masks", shared.OptionInfo(False, "Save masks", section=("ddetailer", "Detection Detailer")))
-    shared.opts.add_option("outdir_ddetailer_masks", shared.OptionInfo(f"{scriptdir}/outputs/masks", 'Output directory for masks', section=("ddetailer", "Detection Detailer")))
+    shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("muddetailer", "MuDDetailer")))
+    shared.opts.add_option("outdir_muddetailer_previews", shared.OptionInfo(f"{scriptdir}/outputs/masks-previews", 'Output directory for mask previews', section=("muddetailer", "MuDDetailer")))
+    shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "MuDDetailer")))
+    shared.opts.add_option("outdir_muddetailer_masks", shared.OptionInfo(f"{scriptdir}/outputs/masks", 'Output directory for masks', section=("muddetailer", "MuDDetailer")))
 
 def create_segmasks(results):
     segms = results[2]
@@ -1526,8 +1526,13 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
 def on_infotext_pasted(infotext, results):
     updates = {}
     for k, v in results.items():
-        if not k.startswith("DDetailer"):
+        if not k.startswith("DDetailer") and not k.startswith("MuDDetailer"):
             continue
+
+        # copy DDetailer options
+        if k.startswith("DDetailer"):
+            k = k.replace("DDetailer", "MuDDetailer")
+            updates[k] = v
 
         if k.find(" classes ") > 0:
             if v[0] == '"' and v[-1] == '"':
