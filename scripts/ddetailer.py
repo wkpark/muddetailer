@@ -78,6 +78,9 @@ def startup():
             run(f'"{python}" -m mim install mmcv>==2.0.0', desc=f"Installing mmcv", errdesc=f"Couldn't install mmcv")
             run(f'"{python}" -m pip install mmdet>=3', desc=f"Installing mmdet", errdesc=f"Couldn't install mmdet")
 
+    if not legacy and not is_installed("mmyolo"):
+        run(f'"{python}" -m mim install mmyolo', desc=f"Installing mmyolo", errdesc=f"Couldn't install mmyolo")
+
     bbox_path = os.path.join(dd_models_path, "bbox")
     segm_path = os.path.join(dd_models_path, "segm")
     list_model = list_models(dd_models_path)
@@ -100,10 +103,11 @@ def startup():
             need_download = True
             break
 
-    for path, model in optional:
-        if not os.path.exists(os.path.join(path, model)):
-            need_download = True
-            break
+    if not legacy:
+        for path, model in optional:
+            if not os.path.exists(os.path.join(path, model)):
+                need_download = True
+                break
 
     while need_download:
         if len(list_model) == 0:
