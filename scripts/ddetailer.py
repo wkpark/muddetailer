@@ -1074,12 +1074,12 @@ class DetectionDetailerScript(scripts.Script):
         return processed
 
     def postprocess_image(self, p, pp, enabled, use_prompt_edit, use_prompt_edit_2,
-                     dd_model_a,
+                     dd_model_a, dd_classes_a,
                      dd_conf_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
-                     dd_model_b,
+                     dd_model_b, dd_classes_b,
                      dd_conf_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
@@ -1095,12 +1095,12 @@ class DetectionDetailerScript(scripts.Script):
             return
 
         self._postprocess_image(p, pp, use_prompt_edit, use_prompt_edit_2,
-                     dd_model_a,
+                     dd_model_a, dd_classes_a,
                      dd_conf_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
-                     dd_model_b,
+                     dd_model_b, dd_classes_b,
                      dd_conf_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
