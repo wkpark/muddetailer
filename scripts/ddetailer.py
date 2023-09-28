@@ -1377,8 +1377,15 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
         mmdet_results = inference_detector(model, np.array(image)).pred_instances
         bboxes = mmdet_results.bboxes.numpy()
 
-    dataset = modeldataset(modelname)
-    classes = get_classes(dataset)
+    # get classes info from metadata
+    meta = getattr(model, "dataset_meta", None)
+    classes = None
+    if meta is not None:
+        classes = getattr(meta, "classes", None)
+    if classes is None:
+        dataset = modeldataset(modelname)
+        classes = get_classes(dataset)
+
     if mmcv_legacy:
         labels = [
             np.full(bbox.shape[0], i, dtype=np.int32)
@@ -1458,11 +1465,18 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         cv2_mask_bool = cv2_mask.astype(bool)
         segms.append(cv2_mask_bool)
 
-    dataset = modeldataset(modelname)
-    if dataset == "coco":
-        classes = get_classes(dataset)
-    else:
-        classes = None
+    # get classes info from metadata
+    meta = getattr(model, "dataset_meta", None)
+    classes = None
+    if meta is not None:
+        classes = getattr(meta, "classes", None)
+    if classes is None:
+        dataset = modeldataset(modelname)
+        if dataset == "coco":
+            classes = get_classes(dataset)
+        else:
+            classes = None
+
     if mmcv_legacy:
         n,m = results[0].shape
     else:
