@@ -26,6 +26,7 @@ dd_models_path = os.path.join(models_path, "mmdet")
 scriptdir = scripts.basedir()
 
 models_list = {}
+models_alias = {}
 def list_models(model_path):
         model_list = modelloader.load_models(model_path=model_path, ext_filter=[".pth"])
         
@@ -61,7 +62,8 @@ def list_models(model_path):
 
             title, short_model_name = modeltitle(filename, h)
             models.append(title)
-        
+            models_alias[title] = filename
+
         return models
 
 def startup():
@@ -201,11 +203,11 @@ def ddetailer_extra_params(
 ):
     params = {
         "MuDDetailer use prompt edit": use_prompt_edit,
-        "MuDDetailer use prompt edit 2": use_prompt_edit_2,
+        "MuDDetailer use prompt edit b": use_prompt_edit_2,
         "MuDDetailer prompt": dd_prompt,
         "MuDDetailer neg prompt": dd_neg_prompt,
-        "MuDDetailer prompt 2": dd_prompt_2,
-        "MuDDetailer neg prompt 2": dd_neg_prompt_2,
+        "MuDDetailer prompt b": dd_prompt_2,
+        "MuDDetailer neg prompt b": dd_neg_prompt_2,
         "MuDDetailer model a": dd_model_a,
         "MuDDetailer conf a": dd_conf_a,
         "MuDDetailer dilation a": dd_dilation_factor_a,
@@ -243,9 +245,9 @@ def ddetailer_extra_params(
     if not dd_neg_prompt:
         params.pop("MuDDetailer neg prompt")
     if not dd_prompt_2:
-        params.pop("MuDDetailer prompt 2")
+        params.pop("MuDDetailer prompt b")
     if not dd_neg_prompt_2:
-        params.pop("MuDDetailer neg prompt 2")
+        params.pop("MuDDetailer neg prompt b")
 
     if dd_clipskip == 0:
         params.pop("MuDDetailer CLIP skip")
@@ -1218,11 +1220,22 @@ def modeldataset(model_shortname):
     return dataset
 
 def modelpath(model_shortname):
-    model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
-    model_h = model_shortname.split("[")[-1].split("]")[0]
-    for path in model_list:
+    model_list = list_models(dd_models_path)
+    if model_shortname.find("[") == -1:
+        for model in model_list:
+            if model_shortname in model:
+                tmp = model.split(" ")[0]
+                if model_shortname == tmp.split("\\")[-1]:
+                    model_shortname = model
+                    break
+
+    if model_shortname in models_alias:
+        path = models_alias[model_shortname]
+        model_h = model_shortname.split("[")[-1].split("]")[0]
         if ( model_hash(path) == model_h):
             return path
+
+    raise gr.Error("No matched model found.")
 
 def update_result_masks(results, masks):
     for i in range(len(masks)):
@@ -1321,8 +1334,9 @@ def combine_masks(masks):
     return combined_mask
 
 def on_ui_settings():
-    shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("muddetailer", "MuDDetailer")))
-    shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "MuDDetailer")))
+    shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("muddetailer", "μ DDetailer")))
+    shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "μ DDetailer")))
+    shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=("muddetailer", "μ DDetailer")))
 
 def create_segmasks(results):
     segms = results[2]
@@ -1523,9 +1537,81 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
 
 def on_infotext_pasted(infotext, results):
     updates = {}
+    import_adetailer = shared.opts.data.get("mudd_import_adetailer", False)
+    adetailer_args = [
+        "model", "prompt", "negative prompt", "dilate/erode", "steps",
+        "CFG scale", "noise multiplifer", "x offset", "y offset", "CLIP skip",
+        "VAE", "checkpoint", "confidence", "mask blur", "denoising strength",
+        "inpaint only masked", "inpaint padding"
+    ]
+    adetailer_models = {
+        "face_yolov8n.pt": "face_yolov8n.pth",
+        "face_yolov8s.pt": "face_yolov8s.pth",
+        "hand_yolov8n.pt": "hand_yolov8n.pth",
+        "hand_yolov8s.pt": "hand_yolov8s.pth",
+        "mediapipe_face_full": "face_yolov8n.pth",
+        "mediapipe_face_short": "face_yolov8n.pth",
+        "mediapipe_face_mesh": "face_yolov8n.pth",
+        "person_yolov8n-seg.pt": "mmdet_dd-person_mask2former.pth",
+        "person_yolov8s-seg.pt": "mmdet_dd-person_mask2former.pth",
+    }
+    list_model = list_models(dd_models_path)
     for k, v in results.items():
+        if import_adetailer and k.startswith("ADetailer"):
+            key = k
+            # import ADetailer params
+            if any(x in k for x in adetailer_args):
+                # check suffix
+                if any(x in k for x in [" 3rd", " 4th", " 5th", " 6th", " 7th"]):
+                    # do not support above "3rd" parameters
+                    continue
+                if "2nd" in k:
+                    suffix = " b"
+                else:
+                    suffix = " a"
+
+                if "confidence" in k:
+                    v = int(float(v) * 100)
+                elif "dilate" in k:
+                    if int(v) < 0: continue
+                if all(x not in k for x in ["confidence", "offset", "dilate", "model"]) and suffix != " a":
+                    continue
+                if "model" in k and v in adetailer_models:
+                    m = adetailer_models[v]
+                    found = None
+                    for model in list_model:
+                        if m in model:
+                            tmp = model.split(" ")[0]
+                            if m == tmp.split("\\")[-1]:
+                                found = model
+                                break
+                    if found is not None:
+                        v = found
+                    else:
+                        continue
+                elif "model" in k:
+                    continue
+
+                k = k.replace("ADetailer ", "MuDDetailer ").replace("x offset", "offset x").replace("y offset", "offset y")
+                k = k.replace("dilate/erode", "dilation").replace("negative prompt", "neg prompt").replace("confidence", "conf")
+                k = k.replace("denoising strength", "denoising").replace("inpaint only masked", "inpaint full")
+                k = k.replace(" 2nd", "").strip()
+
+                if "prompt" in k and suffix != " a":
+                    k += suffix
+                elif any(x in k for x in
+                       ["model", "conf", "offset", "dilation"]):
+                    k += suffix
+
+                print(f"import ADetailer param: {key}->{k}: {v}")
+                updates[k] = v
+                continue
+
         if not k.startswith("DDetailer") and not k.startswith("MuDDetailer"):
             continue
+
+        # fix old params
+        k = k.replace("prompt 2", "prompt b")
 
         # copy DDetailer options
         if k.startswith("DDetailer"):
