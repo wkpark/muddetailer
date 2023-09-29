@@ -2,6 +2,9 @@
 # copy of the original source https://github.com/open-mmlab/mmyolo/blob/main/configs/yolov8/yolov8_s_syncbn_fast_8xb16-500e_coco.py
 #_base_ = ['../_base_/default_runtime.py', '../_base_/det_p5_tta.py']
 _base_ = ['./default_runtime.py']
+# override setting
+_base_.default_scope = 'mmyolo'
+_base_.backend_args = None
 
 # ========================Frequently modified parameters======================
 # -----data related-----

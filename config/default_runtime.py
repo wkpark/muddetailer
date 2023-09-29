@@ -1,4 +1,4 @@
-default_scope = 'mmyolo'
+default_scope = 'mmdet'
 
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
@@ -39,5 +39,4 @@ resume = False
 #         './data/': 's3://openmmlab/datasets/detection/',
 #         'data/': 's3://openmmlab/datasets/detection/'
 #     }))
-
-backend_args = None
+#backend_args = None
