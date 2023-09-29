@@ -126,7 +126,8 @@ def startup():
                 load_file_from_url("https://huggingface.co/dustysys/ddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", segm_path)
             else:
                 load_file_from_url(
-                    "https://download.openmmlab.com/mmdetection/v3.0/mask2former/mask2former_r50_8xb2-lsj-50e_coco/mask2former_r50_8xb2-lsj-50e_coco_20220506_191028-41b088b6.pth",
+                    #"https://download.openmmlab.com/mmdetection/v3.0/mask2former/mask2former_r50_8xb2-lsj-50e_coco/mask2former_r50_8xb2-lsj-50e_coco_20220506_191028-41b088b6.pth",
+                    "https://huggingface.co/wkpark/muddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", # the same copy
                     segm_path,
                     file_name="mmdet_dd-person_mask2former.pth")
 
@@ -146,7 +147,7 @@ def startup():
     if legacy:
         configs = [ "mmdet_anime-face_yolov3.py", "mmdet_dd-person_mask2former.py" ]
     else:
-        configs = [ "mmdet_anime-face_yolov3-v3.py", "mmdet_dd-person_mask2former-v3.py", "mask2former_r50_8xb2-lsj-50e_coco-panoptic.py", "coco_panoptic.py" ]
+        configs = [ "mmdet_anime-face_yolov3-v3.py", "mmdet_dd-person_mask2former-v3.py", "default_runtime.py", "mask2former_r50_8xb2-lsj-50e_coco.py", "mask2former_r50_8xb2-lsj-50e_coco-panoptic.py", "coco_panoptic.py" ]
 
     destdir = bbox_path
     for confpy in configs:
@@ -168,8 +169,9 @@ def startup():
     ]
     for destdir, files in configs:
         for file in files:
-            if not os.path.exists(os.path.join(destdir, file)):
-                confpy = os.path.join(config_dir, file)
+            destconf = os.path.join(destdir, file)
+            confpy = os.path.join(config_dir, file)
+            if not os.path.exists(destconf) or os.path.getmtime(confpy) > os.path.getmtime(destconf):
                 print(f"Copy config file: {confpy}..")
                 shutil.copy(confpy, destdir)
 
@@ -1339,6 +1341,7 @@ def on_ui_settings():
     shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("muddetailer", "μ DDetailer")))
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "μ DDetailer")))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=("muddetailer", "μ DDetailer")))
+    shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=("muddetailer", "μ DDetailer")))
 
 def create_segmasks(results):
     segms = results[2]
@@ -1362,6 +1365,34 @@ except ImportError:
     from mmdet.apis import inference_detector, init_detector
     mmcv_legacy = False
 
+
+def check_validity():
+    """check validity of model + config settings"""
+    check = shared.opts.data.get("mudd_check_validity", True)
+    if not check:
+        return
+
+    model_list = list_models(dd_models_path)
+    model_device = get_device()
+    for title in model_list:
+        checkpoint = models_alias[title]
+        config = os.path.splitext(checkpoint)[0] + ".py"
+        if not os.path.exists(config):
+            continue
+
+        try:
+            if mmcv_legacy:
+                model = init_detector(config, checkpoint, device=model_device)
+            else:
+                model = init_detector(config, checkpoint, palette="random", device=model_device)
+
+            print(f"\033[92mSUCCESS\033[0m - success to load {checkpoint}!")
+            del model
+        except Exception as e:
+            print(f"\033[91mFAIL\033[0m - failed to load {checkpoint}, please check validity of the model or the config - {e}")
+
+        devices.torch_gc()
+
 def get_device():
     device_id = shared.cmd_opts.device_id
     if device_id is not None:
@@ -1369,6 +1400,9 @@ def get_device():
     else:
         cuda_device = "cpu"
     return cuda_device
+
+# check validity of models
+check_validity()
 
 def inference(image, modelname, conf_thres, label, classes=None):
     path = modelpath(modelname)
