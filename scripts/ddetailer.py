@@ -7,6 +7,7 @@ import numpy as np
 import gradio as gr
 import json
 import shutil
+import torch
 from pathlib import Path
 
 from copy import copy, deepcopy
@@ -70,7 +71,6 @@ def list_models(model_path):
 
 def startup():
     from launch import is_installed, run
-    import torch
     legacy = torch.__version__.split(".")[0] < "2"
     if not is_installed("mmdet"):
         python = sys.executable
@@ -320,7 +320,18 @@ class MuDetectionDetailerScript(scripts.Script):
 
         dataset = modeldataset(modelname)
         if dataset == "coco":
-            all_classes = get_classes(dataset)
+            path = modelpath(modelname)
+            all_classes = None
+            if os.path.exists(path):
+                model = torch.load(path, map_location="cpu")
+                if "meta" in model and "CLASSES" in model["meta"]:
+                    all_classes = list(model["meta"].get("CLASSES", ("None",)))
+                    print("meta classes =", all_classes)
+                del model
+
+            if all_classes is None:
+                all_classes = get_classes(dataset)
+
             # check duplicates
             if len(classes) > 0:
                 cls = list(set(classes) & set(all_classes))
@@ -1429,7 +1440,8 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
     meta = getattr(model, "dataset_meta", None)
     classes = None
     if meta is not None:
-        classes = getattr(meta, "classes", None)
+        classes = meta.get("classes", None)
+        classes = list(classes) if classes is not None else None
     if classes is None:
         dataset = modeldataset(modelname)
         classes = get_classes(dataset)
