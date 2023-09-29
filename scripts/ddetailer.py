@@ -38,10 +38,12 @@ def list_models(model_path):
             else:
                 name = os.path.basename(path)
 
-            if name.startswith("\\") or name.startswith("/"):
+            # fix path separator
+            name = name.replace('\\', '/')
+            if name.startswith("/"):
                 name = name[1:]
 
-            shortname = os.path.splitext(name.replace("/", "_").replace("\\", "_"))[0]
+            shortname = os.path.splitext(name.replace("/", "_"))[0]
 
             return f'{name} [{shorthash}]', shortname
         
@@ -1582,7 +1584,7 @@ def on_infotext_pasted(infotext, results):
                     for model in list_model:
                         if m in model:
                             tmp = model.split(" ")[0]
-                            if m == tmp.split("\\")[-1]:
+                            if m == tmp.split("/")[-1]:
                                 found = model
                                 break
                     if found is not None:
@@ -1617,6 +1619,10 @@ def on_infotext_pasted(infotext, results):
         if k.startswith("DDetailer"):
             k = k.replace("DDetailer", "MuDDetailer")
             updates[k] = v
+
+        # fix path separator e.g) "bbox\model_name.pth"
+        if "model" in k:
+            updates[k] = v.replace("\\", "/")
 
         if k.find(" classes ") > 0:
             if v[0] == '"' and v[-1] == '"':
