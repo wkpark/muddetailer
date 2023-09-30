@@ -455,6 +455,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4, visible=(not is_img2img))
                     dd_denoising_strength = gr.Slider(label='Denoising strength', minimum=0.0, maximum=1.0, step=0.01, value=0.4, visible=(not is_img2img))
 
+                sampler_names = [sampler.name for sampler in sd_samplers.all_samplers]
                 with gr.Column(variant="compact"):
                     dd_inpaint_full_res = gr.Checkbox(label='Inpaint at full resolution ', value=True, visible = (not is_img2img))
                     dd_inpaint_full_res_padding = gr.Slider(label='Inpaint at full resolution padding, pixels ', minimum=0, maximum=256, step=4, value=32, visible=(not is_img2img))
@@ -466,7 +467,7 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_noise_multiplier = gr.Slider(label='Use noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0)
                                 dd_cfg_scale = gr.Slider(label='Use CFG Scale', minimum=0, maximum=30, step=0.5, value=0)
                             with gr.Row():
-                                dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sd_samplers.visible_sampler_names(), value="Use same sampler")
+                                dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler")
                                 dd_steps = gr.Slider(label='Use sampling steps', minimum=0, maximum=120, step=1, value=0)
                         with gr.Column():
                             with gr.Row():
@@ -696,6 +697,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
             outpath = opts.outdir_samples or opts.outdir_txt2img_samples if not is_img2img else opts.outdir_samples or opts.outdir_img2img_samples
 
+            # fix compatible
+            if type(sampler_name) is int and sampler_name < len(sd_samplers.all_samplers):
+                sampler_name = sd_samplers.all_samplers[sampler_name].name
+
             p = processing.StableDiffusionProcessingTxt2Img(
                 sd_model=shared.sd_model,
                 outpath_samples=outpath,
@@ -715,9 +720,16 @@ class MuDetectionDetailerScript(scripts.Script):
             p.scripts = scripts.scripts_txt2img
             p.script_args = _args[len(all_args):]
 
-            # misc prepare
-            p.setup_prompts()
             p.all_seeds = [ seed ]
+
+            # misc prepare
+            if getattr(p, "setup_prompt", None) is not None:
+                p.setup_prompts()
+            else:
+                p.all_prompts = p.all_prompts or [p.prompt]
+                p.all_negative_prompts = p.all_negative_prompts or [p.negative_prompt]
+                p.all_seeds = p.all_seeds or [p.seed]
+                p.all_subseeds = p.all_subseeds or [p.subseed]
 
             p._inpainting = True
 
@@ -760,8 +772,11 @@ class MuDetectionDetailerScript(scripts.Script):
             if len(gallery) == 0:
                 return gr.update()
             if isinstance(gallery[0], dict) and gallery[0].get("name", None) is not None:
-                print("Import ", gallery[0]["name"])
-                image = Image.open(gallery[0]["name"])
+                name = gallery[0]["name"]
+                if name.find("?") > 0:
+                    name = name[:name.rfind("?")]
+                print("Import ", name)
+                image = Image.open(name)
                 return image
             elif isinstance(gallery[0], np.ndarray):
                 return gallery[0]
