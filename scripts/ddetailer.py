@@ -10,6 +10,9 @@ import shutil
 import torch
 from pathlib import Path
 
+from scripts.mediapipe import mediapipe_detector_face as mp_detector_face
+from scripts.mediapipe import mediapipe_detector_facemesh as mp_detector_facemesh
+
 from copy import copy, deepcopy
 from modules import processing, images
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
@@ -315,7 +318,7 @@ class MuDetectionDetailerScript(scripts.Script):
             DD.components[elem_id] = component
 
     def show_classes(self, modelname, classes):
-        if modelname == "None":
+        if modelname == "None" or "mediapipe_" in modelname:
             return gr.update(visible=False, choices=[], value=[])
 
         dataset = modeldataset(modelname)
@@ -351,6 +354,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 enabled = gr.Checkbox(label="Enable", value=False, visible=True)
 
             model_list = list_models(dd_models_path)
+            mp_models = ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
             if is_img2img:
                 info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint at full res ON, denoise <0.5</p>")
             else:
@@ -358,8 +362,8 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Group(), gr.Tabs():
                 with gr.Tab("Primary"):
                     with gr.Row():
-                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"mudd_refresh_model_a")
+                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + mp_models + model_list, value=model_list[0], visible=True, type="value")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + mp_models + list_models(dd_models_path)},"mudd_refresh_model_a")
                         dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
@@ -1259,6 +1263,10 @@ def update_result_masks(results, masks):
     return results
 
 def create_segmask_preview(results, image):
+    use_mediapipe_preview = shared.opts.data.get("mudd_use_mediapipe_preview", False)
+    if use_mediapipe_preview and len(results) > 4:
+        return results[4]
+
     labels = results[0]
     bboxes = results[1]
     segms = results[2]
@@ -1285,8 +1293,11 @@ def create_segmask_preview(results, image):
             score = bboxes[i][4]
         else:
             score = scores[i]
-        score = str(score)[:4]
-        text = name + ":" + score
+        if score > 0.0:
+            score = str(score)[:4]
+            text = name + ":" + score
+        else:
+            text = name
         cv2.putText(cv2_image, text, (centroid_x - 30, centroid_y), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color, 1, cv2.LINE_AA)
     
     if ( len(segms) > 0):
@@ -1353,6 +1364,7 @@ def on_ui_settings():
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "μ DDetailer")))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=("muddetailer", "μ DDetailer")))
     shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=("muddetailer", "μ DDetailer")))
+    shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=("muddetailer", "μ DDetailer")))
 
 def create_segmasks(results):
     segms = results[2]
@@ -1416,6 +1428,13 @@ def get_device():
 check_validity()
 
 def inference(image, modelname, conf_thres, label, classes=None):
+    if modelname in ["mediapipe_face_short", "mediapipe_face_full"]:
+        results = mp_detector_face(image, modelname, conf_thres, label, classes)
+        return results
+    elif modelname in ["mediapipe_face_mesh"]:
+        results = mp_detector_facemesh(image, modelname, conf_thres, label, classes)
+        return results
+
     path = modelpath(modelname)
     if ( "mmdet" in path and "bbox" in path ):
         results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes)
