@@ -88,6 +88,10 @@ def startup():
     if not legacy and not is_installed("mmyolo"):
         run(f'"{python}" -m mim install mmyolo', desc=f"Installing mmyolo", errdesc=f"Couldn't install mmyolo")
 
+    if not is_installed("mediapipe"):
+        run(f'"{python}" -m pip install protobuf>=3.20', desc="Installing protobuf", errdesc="Couldn't install protobuf")
+        run(f'"{python}" -m pip install mediapipe>=0.10.3', desc="Installing mediapipe", errdesc="Couldn't install mediapipe")
+
     bbox_path = os.path.join(dd_models_path, "bbox")
     segm_path = os.path.join(dd_models_path, "segm")
     list_model = list_models(dd_models_path)
