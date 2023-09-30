@@ -1274,8 +1274,7 @@ def create_segmask_preview(results, image):
     labels = results[0]
     bboxes = results[1]
     segms = results[2]
-    if not mmcv_legacy:
-        scores = results[3]
+    scores = results[3]
 
     cv2_image = np.array(image)
     cv2_image = cv2_image[:, :, ::-1].copy()
@@ -1293,10 +1292,7 @@ def create_segmask_preview(results, image):
         cv2_image = np.where(cv2_mask_rgb == 255, color_image, cv2_image)
         text_color = tuple([int(x) for x in ( color[0][0] - 100 )])
         name = labels[i]
-        if mmcv_legacy:
-            score = bboxes[i][4]
-        else:
-            score = scores[i]
+        score = scores[i]
         if score > 0.0:
             score = str(score)[:4]
             text = name + ":" + score
@@ -1478,25 +1474,23 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
     else:
         n, m = bboxes.shape
     if (n == 0):
-        if mmcv_legacy:
-            return [[],[],[]]
-        else:
-            return [[],[],[],[]]
+        return [[], [], [], []]
 
     if mmcv_legacy:
         labels = np.concatenate(labels)
         bboxes = np.vstack(bbox_results)
         segms = mmcv.concat_list(segm_results)
+        scores = bboxes[:,4]
+        bboxes = bboxes[:,:4]
 
-        filter_inds = np.where(bboxes[:,-1] > conf_thres)[0]
-        results = [[],[],[]]
+        filter_inds = np.where(scores > conf_thres)[0]
     else:
         labels = mmdet_results.labels
         segms = mmdet_results.masks.numpy()
         scores = mmdet_results.scores.numpy()
 
-        filter_inds = np.where(mmdet_results.scores > conf_thres)[0]
-        results = [[],[],[],[]]
+        filter_inds = np.where(scores > conf_thres)[0]
+    results = [[], [], [], []]
 
     # check selected classes
     if type(sel_classes) is str:
@@ -1514,8 +1508,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
         results[0].append(label + "-" + classes[labels[i]])
         results[1].append(bboxes[i])
         results[2].append(segms[i])
-        if not mmcv_legacy:
-            results[3].append(scores[i])
+        results[3].append(scores[i])
 
     return results
 
@@ -1536,9 +1529,11 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
 
     segms = []
     bboxes = []
+    scores = []
     if mmcv_legacy:
-        for (x0, y0, x1, y1, conf) in results[0]:
-            bboxes.append([x0, y0, x1, y1])
+        bboxes = np.vstack(results[0])
+        scores = bboxes[:,4]
+        bboxes = bboxes[:,:4]
     else:
         bboxes = output.bboxes
 
@@ -1565,21 +1560,16 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
     else:
         n,m = output.bboxes.shape
     if (n == 0):
-        if mmcv_legacy:
-            return [[],[],[]]
-        else:
-            return [[],[],[],[]]
+        return [[], [], [], []]
     if mmcv_legacy:
         labels = None
-        bboxes = np.vstack(results[0])
-        filter_inds = np.where(bboxes[:,-1] > conf_thres)[0]
-        results = [[],[],[]]
+        filter_inds = np.where(scores > conf_thres)[0]
     else:
         labels = output.labels
         bboxes = output.bboxes.numpy()
         scores = output.scores.numpy()
         filter_inds = np.where(scores > conf_thres)[0]
-        results = [[],[],[],[]]
+    results = [[], [], [], []]
 
     # check selected classes
     if type(sel_classes) is str:
@@ -1601,8 +1591,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         results[0].append(lab)
         results[1].append(bboxes[i])
         results[2].append(segms[i])
-        if not mmcv_legacy:
-            results[3].append(scores[i])
+        results[3].append(scores[i])
 
     return results
 
