@@ -1071,7 +1071,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 if (len(masks_b_pre) > 0):
                     results_b_pre = update_result_masks(results_b_pre, masks_b_pre)
                     segmask_preview_b = create_segmask_preview(results_b_pre, init_image)
-                    shared.state.current_image = segmask_preview_b
+                    shared.state.assign_current_image(segmask_preview_b)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_b, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_b_pre)
@@ -1143,7 +1143,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 if (len(masks_a) > 0):
                     results_a = update_result_masks(results_a, masks_a)
                     segmask_preview_a = create_segmask_preview(results_a, init_image)
-                    shared.state.current_image = segmask_preview_a
+                    shared.state.assign_current_image(segmask_preview_a)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_a)
