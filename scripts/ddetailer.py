@@ -1422,6 +1422,7 @@ def create_segmasks(results):
     return segmasks
 
 import mmcv
+from mmengine.config import Config
 
 try:
     from mmdet.core import get_classes
@@ -1448,11 +1449,15 @@ def check_validity():
         if not os.path.exists(config):
             continue
 
+        conf = Config.fromfile(config)
+        # check default scope
+        if "yolov8" in config:
+            conf["default_scope"] = "mmyolo"
         try:
             if mmcv_legacy:
-                model = init_detector(config, checkpoint, device=model_device)
+                model = init_detector(conf, checkpoint, device=model_device)
             else:
-                model = init_detector(config, checkpoint, palette="random", device=model_device)
+                model = init_detector(conf, checkpoint, palette="random", device=model_device)
 
             print(f"\033[92mSUCCESS\033[0m - success to load {checkpoint}!")
             del model
@@ -1491,12 +1496,21 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
+
+    conf = Config.fromfile(model_config)
+    # check default scope
+    if "yolov8" in model_config:
+        conf["default_scope"] = "mmyolo"
+
+    # setup default values
+    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=20))))
+
     if mmcv_legacy:
-        model = init_detector(model_config, model_checkpoint, device=model_device)
+        model = init_detector(conf, model_checkpoint, device=model_device)
         mmdet_results = inference_detector(model, np.array(image))
         bbox_results, segm_results = mmdet_results
     else:
-        model = init_detector(model_config, model_checkpoint, palette="random", device=model_device)
+        model = init_detector(conf, model_checkpoint, palette="random", device=model_device)
         mmdet_results = inference_detector(model, np.array(image)).pred_instances
         bboxes = mmdet_results.bboxes.numpy()
 
@@ -1562,11 +1576,19 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
 
+    conf = Config.fromfile(model_config)
+    # check default scope
+    if "yolov8" in model_config:
+        conf["default_scope"] = "mmyolo"
+
+    # setup default values
+    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=20))))
+
     if mmcv_legacy:
-        model = init_detector(model_config, model_checkpoint, device=model_device)
+        model = init_detector(conf, model_checkpoint, device=model_device)
         results = inference_detector(model, np.array(image))
     else:
-        model = init_detector(model_config, model_checkpoint, device=model_device, palette="random")
+        model = init_detector(conf, model_checkpoint, device=model_device, palette="random")
         output = inference_detector(model, np.array(image)).pred_instances
     cv2_image = np.array(image)
     cv2_image = cv2_image[:, :, ::-1].copy()
