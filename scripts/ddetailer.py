@@ -675,13 +675,16 @@ class MuDetectionDetailerScript(scripts.Script):
                 ret.append(DD.img2img_components[elem_id])
             return ret
 
-        def run_inpaint(task, tab, input, gallery, prompt, negative_prompt, styles, steps, sampler_name, batch_count, batch_size,
+        def run_inpaint(task, tab, gallery_idx, input, gallery, generation_info, prompt, negative_prompt, styles, steps, sampler_name, batch_count, batch_size,
                 cfg_scale, width, height, seed, denoising_strength, *_args):
 
+            if gallery_idx < 0:
+                gallery_idx = 0
+
             # image from gr.Image() or gr.Gallery()
-            image = input if input is not None else import_image_from_gallery(gallery)
+            image = input if input is not None else import_image_from_gallery(gallery, gallery_idx)
             if image is None:
-                return gr.update(), gr.update(), "{}", ""
+                return gr.update() * 4
 
             # convert to RGB
             image = image.convert("RGB")
@@ -766,20 +769,47 @@ class MuDetectionDetailerScript(scripts.Script):
             except:
                 pass
 
-            return image if input is None else gr.update(), [outimage], processed.js(), plaintext_to_html(info)
+            # update generation info if
+            geninfo = ""
+            if generation_info.strip() != "":
+                try:
+                    generation_info = json.loads(generation_info)
+                    generation_info["all_prompts"].append(processed.prompt)
+                    generation_info["all_negative_prompts"].append(processed.negative_prompt)
+                    generation_info["all_seeds"].append(processed.seed)
+                    generation_info["all_subseeds"].append(processed.subseed)
+                    generation_info["infotexts"].append(processed.infotexts[0])
 
-        def import_image_from_gallery(gallery):
+                    geninfo = json.dumps(generation_info, ensure_ascii=False)
+                except Exception:
+                    geninfo = processed.js()
+                    pass
+
+            # prepare gallery dict to acceptable tuple
+            gal = []
+            for g in gallery:
+                if type(g) is list:
+                    gal.append((g[0]["name"], g[1]))
+                else:
+                    gal.append(g["name"])
+            gal.append(outimage)
+
+            return image if input is None else gr.update(), gal, geninfo, plaintext_to_html(info)
+
+        def import_image_from_gallery(gallery, idx):
             if len(gallery) == 0:
                 return gr.update()
-            if isinstance(gallery[0], dict) and gallery[0].get("name", None) is not None:
-                name = gallery[0]["name"]
+            if idx > len(gallery):
+                idx = len(gallery) - 1
+            if isinstance(gallery[idx], dict) and gallery[idx].get("name", None) is not None:
+                name = gallery[idx]["name"]
                 if name.find("?") > 0:
                     name = name[:name.rfind("?")]
                 print("Import ", name)
                 image = Image.open(name)
                 return image
-            elif isinstance(gallery[0], np.ndarray):
-                return gallery[0]
+            elif isinstance(gallery[idx], np.ndarray):
+                return gallery[idx]
             else:
                 print("Invalid gallery image {type(gallery[0]}")
             return None
@@ -831,16 +861,16 @@ class MuDetectionDetailerScript(scripts.Script):
                     if not is_img2img:
                         dd_run_inpaint.click(
                             fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
-                            _js="submit",
-                            inputs=[ dummy_component, dummy_component, dd_image, DD.components["txt2img_gallery"], *get_txt2img_components(), *all_args, *script_args],
+                            _js="mudd_inpainting",
+                            inputs=[ dummy_component, dummy_component, dummy_component, dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], *get_txt2img_components(), *all_args, *script_args],
                             outputs=[dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], DD.components["html_info_txt2img"]],
                             show_progress=False,
                         )
                     else:
                         dd_run_inpaint.click(
                             fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
-                            _js="submit_img2img",
-                            inputs=[ dummy_component, dummy_component, DD.components["img2img_image"], DD.components["img2img_gallery"], *get_img2img_components(), *all_args, *script_args],
+                            _js="mudd_inpainting_img2img",
+                            inputs=[ dummy_component, dummy_component, dummy_component, DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_txt2img"], *get_img2img_components(), *all_args, *script_args],
                             outputs=[DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_img2img"], DD.components["html_info_img2img"]],
                             show_progress=False,
                         )
