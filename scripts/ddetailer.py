@@ -1238,7 +1238,7 @@ def unquote(text):
         return text
 
 # from modules/generation_parameters_copypaste.py
-re_param_code = r'\s*([\w ]+):\s*("(?:\\"[^,]|\\"|\\|[^\"])+"|[^,]*)(?:,|$)'
+re_param_code = r'\s*(\w[\w -/]+):\s*("(?:\\"[^,]|\\"|\\|[^\"])+"|[^,]*)(?:,|$)'
 re_param = re.compile(re_param_code)
 
 def parse_prompt(x: str):
