@@ -1562,7 +1562,8 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
     meta = getattr(model, "dataset_meta", None)
     classes = None
     if meta is not None:
-        classes = getattr(meta, "classes", None)
+        classes = meta.get("classes", None)
+        classes = list(classes) if classes is not None else None
     if classes is None:
         dataset = modeldataset(modelname)
         if dataset == "coco":
