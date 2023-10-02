@@ -1422,16 +1422,16 @@ def create_segmasks(results):
     return segmasks
 
 import mmcv
-from mmengine.config import Config
 
 try:
     from mmdet.core import get_classes
-    from mmdet.apis import (inference_detector,
-                        init_detector)
+    from mmdet.apis import inference_detector, init_detector
+    from mmcv import Config
     mmcv_legacy = True
 except ImportError:
     from mmdet.evaluation import get_classes
     from mmdet.apis import inference_detector, init_detector
+    from mmengine.config import Config
     mmcv_legacy = False
 
 
@@ -1505,14 +1505,57 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
     # setup default values
     conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=20))))
 
+    segms = []
+    bboxes = []
     if mmcv_legacy:
         model = init_detector(conf, model_checkpoint, device=model_device)
-        mmdet_results = inference_detector(model, np.array(image))
-        bbox_results, segm_results = mmdet_results
+        results = inference_detector(model, np.array(image))
+
+        if type(results) is dict:
+            print("dict type result")
+            results = results["ins_results"]
+        else:
+            print("tuple type result")
+
+        bboxes = np.vstack(results[0])
+        labels = [
+            np.full(bbox.shape[0], i, dtype=np.int32)
+            for i, bbox in enumerate(results[0])
+        ]
+        labels = np.concatenate(labels)
+
+        if len(results) > 1:
+            segms = results[1]
+            segms = mmcv.concat_list(segms)
+
+        scores = bboxes[:, 4]
+        bboxes = bboxes[:, :4]
     else:
         model = init_detector(conf, model_checkpoint, palette="random", device=model_device)
-        mmdet_results = inference_detector(model, np.array(image)).pred_instances
-        bboxes = mmdet_results.bboxes.numpy()
+        results = inference_detector(model, np.array(image)).pred_instances
+        bboxes = results.bboxes.cpu().numpy()
+        labels = results.labels
+        if "masks" in results:
+            segms = results.masks.cpu().numpy()
+        scores = results.scores.cpu().numpy()
+
+    if len(segms) == 0:
+        # without segms case.
+        segms = []
+        cv2_image = np.array(image)
+        cv2_image = cv2_image[:, :, ::-1].copy()
+        cv2_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
+
+        for x0, y0, x1, y1 in bboxes:
+            cv2_mask = np.zeros((cv2_gray.shape), np.uint8)
+            cv2.rectangle(cv2_mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
+            cv2_mask_bool = cv2_mask.astype(bool)
+            segms.append(cv2_mask_bool)
+
+    n, m = bboxes.shape
+    results = [[], [], [], []]
+    if (n == 0):
+        return results
 
     # get classes info from metadata
     meta = getattr(model, "dataset_meta", None)
@@ -1522,49 +1565,32 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
         classes = list(classes) if classes is not None else None
     if classes is None:
         dataset = modeldataset(modelname)
-        classes = get_classes(dataset)
+        if dataset == "coco":
+            classes = get_classes(dataset)
+        else:
+            classes = None
 
-    if mmcv_legacy:
-        labels = [
-            np.full(bbox.shape[0], i, dtype=np.int32)
-            for i, bbox in enumerate(bbox_results)
-        ]
-        n, m = bbox_results[0].shape
-    else:
-        n, m = bboxes.shape
-    if (n == 0):
-        return [[], [], [], []]
-
-    if mmcv_legacy:
-        labels = np.concatenate(labels)
-        bboxes = np.vstack(bbox_results)
-        segms = mmcv.concat_list(segm_results)
-        scores = bboxes[:,4]
-        bboxes = bboxes[:,:4]
-
-        filter_inds = np.where(scores > conf_thres)[0]
-    else:
-        labels = mmdet_results.labels
-        segms = mmdet_results.masks.numpy()
-        scores = mmdet_results.scores.numpy()
-
-        filter_inds = np.where(scores > conf_thres)[0]
-    results = [[], [], [], []]
+    filter_inds = np.where(scores > conf_thres)[0]
 
     # check selected classes
     if type(sel_classes) is str:
         sel_classes = [sel_classes]
-    if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
-        # "None" selected. in this case, get all dectected classes
-        sel_classes = None
+    if sel_classes is not None:
+        if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
+            # "None" selected. in this case, get all dectected classes
+            sel_classes = None
 
     for i in filter_inds:
-        if sel_classes is not None:
+        lab = label
+        if sel_classes is not None and labels is not None and classes is not None:
             cls = classes[labels[i]]
             if cls not in sel_classes:
                 continue
+            lab += "-" + cls
+        elif labels is not None and classes is not None:
+            lab += "-" + classes[labels[i]]
 
-        results[0].append(label + "-" + classes[labels[i]])
+        results[0].append(lab)
         results[1].append(bboxes[i])
         results[2].append(segms[i])
         results[3].append(scores[i])
@@ -1589,7 +1615,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         results = inference_detector(model, np.array(image))
     else:
         model = init_detector(conf, model_checkpoint, device=model_device, palette="random")
-        output = inference_detector(model, np.array(image)).pred_instances
+        results = inference_detector(model, np.array(image)).pred_instances
     cv2_image = np.array(image)
     cv2_image = cv2_image[:, :, ::-1].copy()
     cv2_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
@@ -1601,14 +1627,26 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         bboxes = np.vstack(results[0])
         scores = bboxes[:,4]
         bboxes = bboxes[:,:4]
+        labels = [
+            np.full(bbox.shape[0], i, dtype=np.int32)
+            for i, bbox in enumerate(results[0])
+        ]
+        labels = np.concatenate(labels)
     else:
-        bboxes = output.bboxes
+        bboxes = results.bboxes.cpu().numpy()
+        scores = results.scores.cpu().numpy()
+        labels = results.labels
 
     for x0, y0, x1, y1 in bboxes:
         cv2_mask = np.zeros((cv2_gray.shape), np.uint8)
         cv2.rectangle(cv2_mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
         cv2_mask_bool = cv2_mask.astype(bool)
         segms.append(cv2_mask_bool)
+
+    n, m = bboxes.shape
+    results = [[], [], [], []]
+    if (n == 0):
+        return results
 
     # get classes info from metadata
     meta = getattr(model, "dataset_meta", None)
@@ -1623,28 +1661,15 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         else:
             classes = None
 
-    if mmcv_legacy:
-        n,m = results[0].shape
-    else:
-        n,m = output.bboxes.shape
-    if (n == 0):
-        return [[], [], [], []]
-    if mmcv_legacy:
-        labels = None
-        filter_inds = np.where(scores > conf_thres)[0]
-    else:
-        labels = output.labels
-        bboxes = output.bboxes.numpy()
-        scores = output.scores.numpy()
-        filter_inds = np.where(scores > conf_thres)[0]
-    results = [[], [], [], []]
+    filter_inds = np.where(scores > conf_thres)[0]
 
     # check selected classes
     if type(sel_classes) is str:
         sel_classes = [sel_classes]
-    if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
-        # "None" selected. in this case, get all dectected classes
-        sel_classes = None
+    if sel_classes is not None:
+        if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
+            # "None" selected. in this case, get all dectected classes
+            sel_classes = None
 
     for i in filter_inds:
         lab = label
