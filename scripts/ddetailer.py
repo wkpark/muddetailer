@@ -238,12 +238,12 @@ def ddetailer_extra_params(
         "MuDDetailer VAE": dd_vae,
         "MuDDetailer CLIP skip": dd_clipskip,
     }
-    if len(dd_classes_a) > 0:
+    if dd_classes_a is not None and len(dd_classes_a) > 0:
         params["MuDDetailer classes a"] = ",".join(dd_classes_a),
 
     if dd_model_b != "None":
         params["MuDDetailer model b"] = dd_model_b
-        if len(dd_classes_b) > 0:
+        if dd_classes_b is not None and len(dd_classes_b) > 0:
             params["MuDDetailer classes b"] = ",".join(dd_classes_b)
         params["MuDDetailer preprocess b"] = dd_preprocess_b
         params["MuDDetailer bitwise"] = dd_bitwise_op
@@ -1245,6 +1245,19 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_checkpoint = args.get("checkpoint", "None")
             dd_vae = args.get("VAE", "None")
             dd_clipskip = args.get("CLIP skip", 0)
+
+        # some check for API
+        if dd_classes_a is str:
+            if dd_classes_a.find(",") != -1:
+                dd_classes_a = [x.strip() for x in dd_classes_a.split(",")]
+        if dd_classes_a == "None":
+            dd_classes_a = None
+
+        if dd_classes_b is str:
+            if dd_classes_b.find(",") != -1:
+                dd_classes_b = [x.strip() for x in dd_classes_b.split(",")]
+        if dd_classes_b == "None":
+            dd_classes_b = None
 
         if not enabled:
             return
