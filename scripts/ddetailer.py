@@ -1052,6 +1052,8 @@ class MuDetectionDetailerScript(scripts.Script):
         if p_txt._inpainting:
             shared.total_tqdm.updateTotal(0)
 
+        processed = Processed(p, [])
+
         output_images = []
         state.job_count = ddetail_count
         for n in range(ddetail_count):
@@ -1175,7 +1177,6 @@ class MuDetectionDetailerScript(scripts.Script):
   
                 else: 
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
-                    processed = Processed(p, [])
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
 
         if len(output_images) > 0:
