@@ -8,6 +8,7 @@ import gradio as gr
 import json
 import shutil
 import torch
+from fastapi import FastAPI
 from pathlib import Path
 
 from scripts.mediapipe import mediapipe_detector_face as mp_detector_face
@@ -298,7 +299,7 @@ class MuDetectionDetailerScript(scripts.Script):
         super().__init__()
 
     def title(self):
-        return "µ Detection Detailer"
+        return "Mu Detection Detailer"
     
     def show(self, is_img2img):
         return scripts.AlwaysVisible
@@ -1785,5 +1786,19 @@ def on_infotext_pasted(infotext, results):
 
     results.update(updates)
 
+def api_version():
+    return "1.0.0"
+
+def muddetailer_api(_: gr.Blocks, app: FastAPI):
+    @app.get("/muddetailer/version")
+    async def version():
+        return {"version": api_version()}
+
+    @app.get("/muddetailer/model_list")
+    async def model_list(update: bool = True):
+        list_model = list_models(dd_models_path)
+        return {"model_list": list_model}
+
 script_callbacks.on_ui_settings(on_ui_settings)
 script_callbacks.on_infotext_pasted(on_infotext_pasted)
+script_callbacks.on_app_started(muddetailer_api)
