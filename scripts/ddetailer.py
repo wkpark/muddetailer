@@ -1187,7 +1187,12 @@ class MuDetectionDetailerScript(scripts.Script):
 
         return processed
 
-    def postprocess_image(self, p, pp, enabled, use_prompt_edit, use_prompt_edit_2,
+    def postprocess_image(self, p, pp, *_args):
+        if getattr(p, "_disable_muddetailer", False):
+            return
+
+        if type(_args[0]) is bool:
+            (enabled, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
@@ -1200,10 +1205,46 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_mask_blur, dd_denoising_strength,
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip):
+                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip) = (*_args,)
+        else:
+            # for API
+            args = _args[0]
 
-        if getattr(p, "_disable_muddetailer", False):
-            return
+            enabled = args.get("enabled", False)
+            use_prompt_edit = args.get("use prompt edit", False)
+            use_prompt_edit_2 = args.get("use prompt edit b", False)
+            dd_model_a = args.get("model a", "None")
+            dd_classes_a = args.get("classes a", [])
+            dd_conf_a = args.get("conf a", 30)
+            dd_dilation_factor_a = args.get("dilation a", 4)
+            dd_offset_x_a = args.get("offset x a", 0)
+            dd_offset_y_a = args.get("offset y a", 0)
+            dd_prompt = args.get("prompt", "")
+            dd_neg_prompt = args.get("negative prompt", "")
+
+            dd_preprocess_b = args.get("preprocess b", False)
+            dd_bitwise_op = args.get("bitwise", "None")
+
+            dd_model_b = args.get("model b", "None")
+            dd_classes_b = args.get("classes b", [])
+            dd_conf_b = args.get("conf b", 30)
+            dd_dilation_factor_b = args.get("dilation b", 4)
+            dd_offset_x_b = args.get("offset x b", 0)
+            dd_offset_y_b = args.get("offset y b", 0)
+            dd_prompt_2 = args.get("prompt b", "")
+            dd_neg_prompt_2 = args.get("negative prompt b", "")
+
+            dd_mask_blur = args.get("mask blur", 4)
+            dd_denoising_strength = args.get("denoising strength", 0.4)
+            dd_inpaint_full_res = args.get("inpaint full", True)
+            dd_inpaint_full_res_padding = args.get("inpaint full padding", 32)
+            dd_cfg_scale = args.get("CFG scale", 0)
+            dd_steps = args.get("steps", 0)
+            dd_noise_multiplier = args.get("noise multiplier", 0)
+            dd_sampler = args.get("sampler", "None")
+            dd_checkpoint = args.get("checkpoint", "None")
+            dd_vae = args.get("VAE", "None")
+            dd_clipskip = args.get("CLIP skip", 0)
 
         if not enabled:
             return
