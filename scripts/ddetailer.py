@@ -18,7 +18,7 @@ from copy import copy, deepcopy
 from modules import processing, images
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
 from modules.call_queue import wrap_gradio_gpu_call, wrap_queued_call, wrap_gradio_call
-from modules.generation_parameters_copypaste import parse_generation_parameters
+from modules.generation_parameters_copypaste import parse_generation_parameters, ParamBinding, register_paste_params_button
 from modules.processing import Processed, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img
 from modules.shared import opts, cmd_opts, state
 from modules.sd_models import model_hash
@@ -504,12 +504,40 @@ class MuDetectionDetailerScript(scripts.Script):
                         dd_bitwise_op = gr.Radio(label='Bitwise operation', choices=['None', 'A&B', 'A-B'], value="None")
 
                 with gr.Accordion("Inpainting Helper", open=False):
+                    gr.HTML(value="<p>If you already have images in the gallery, you can click one of them to select and click the Inpaint button.</p>")
                     with gr.Column(variant="compact"):
                         with gr.Row():
                             if not is_img2img:
                                 dd_image = gr.Image(label='Image', type="pil")
                         with gr.Row():
-                            dd_run_inpaint = gr.Button(value='Inpaint', interactive=True)
+                            if not is_img2img:
+                                dd_import_prompt = gr.Button(value='Import prompt', interactive=False, variant="secondary")
+                            dd_run_inpaint = gr.Button(value='Inpaint', interactive=True, variant="primary")
+                        generation_info = gr.Textbox(visible=False, elem_id="muddetailer_image_generation_info")
+
+                    if not is_img2img:
+                        register_paste_params_button(ParamBinding(
+                            paste_button=dd_import_prompt, tabname="txt2img" if not is_img2img else "img2img",
+                                source_text_component=generation_info, source_image_component=dd_image,
+                        ))
+
+                    def get_pnginfo(image):
+                        if image is None:
+                            return '', gr.update(interactive=False, variant="secondary")
+
+                        geninfo, _ = images.read_info_from_image(image)
+                        if geninfo is None or geninfo.strip() == "":
+                            return '', gr.update(interactive=False, variant="secondary")
+
+                        return geninfo, gr.update(interactive=True, variant="primary")
+
+
+                    if not is_img2img:
+                        dd_image.change(
+                            fn=get_pnginfo,
+                            inputs=[dd_image],
+                            outputs=[generation_info, dd_import_prompt],
+                        )
 
                     dummy_component = gr.Label(visible=False)
 
@@ -801,7 +829,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         def import_image_from_gallery(gallery, idx):
             if len(gallery) == 0:
-                return gr.update()
+                return None
             if idx > len(gallery):
                 idx = len(gallery) - 1
             if isinstance(gallery[idx], dict) and gallery[idx].get("name", None) is not None:
