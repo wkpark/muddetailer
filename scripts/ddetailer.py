@@ -202,13 +202,15 @@ def ddetailer_extra_params(
     use_prompt_edit_2,
     dd_model_a, dd_classes_a,
     dd_conf_a, dd_max_per_img_a,
-    dd_detect_order_a, dd_dilation_factor_a,
+    dd_detect_order_a, dd_select_masks_a,
+    dd_dilation_factor_a,
     dd_offset_x_a, dd_offset_y_a,
     dd_prompt, dd_neg_prompt,
     dd_preprocess_b, dd_bitwise_op,
     dd_model_b, dd_classes_b,
     dd_conf_b, dd_max_per_img_b,
-    dd_detect_order_b, dd_dilation_factor_b,
+    dd_detect_order_b, dd_select_masks_b,
+    dd_dilation_factor_b,
     dd_offset_x_b, dd_offset_y_b,
     dd_prompt_2, dd_neg_prompt_2,
     dd_mask_blur, dd_denoising_strength,
@@ -246,6 +248,8 @@ def ddetailer_extra_params(
         params["MuDDetailer classes a"] = ",".join(dd_classes_a)
     if dd_detect_order_a is not None and len(dd_detect_order_a) > 0:
         params["MuDDetailer detect order a"] = ",".join(dd_detect_order_a)
+    if dd_select_masks_a is not None and dd_select_masks_a != "":
+        params["MuDDetailer select masks a"] = dd_select_masks_a
 
     if dd_model_b != "None":
         params["MuDDetailer model b"] = dd_model_b
@@ -253,6 +257,8 @@ def ddetailer_extra_params(
             params["MuDDetailer classes b"] = ",".join(dd_classes_b)
         if dd_detect_order_b is not None and len(dd_detect_order_b) > 0:
             params["MuDDetailer detect order b"] = ",".join(dd_detect_order_b)
+        if dd_select_masks_b is not None and dd_select_masks_b != "":
+            params["MuDDetailer select masks b"] = dd_select_masks_b
         params["MuDDetailer preprocess b"] = dd_preprocess_b
         params["MuDDetailer bitwise"] = dd_bitwise_op
         params["MuDDetailer conf b"] = dd_conf_b
@@ -408,8 +414,10 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_offset_x_a = gr.Slider(label='X offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                                 dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                             with gr.Row():
-                                dd_max_per_img_a = gr.Slider(label='Max detection number (A) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
+                                dd_max_per_img_a = gr.Slider(label='Max detection (A) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
                                 dd_detect_order_a = gr.CheckboxGroup(label="Detect order (A)", choices=["area", "position"], interactive=True, value=[], min_width=80)
+                            with gr.Row():
+                                dd_select_masks_a = gr.Textbox(label='Select masks to process (A)', value='', placeholder='input mask numbers to process e.g) 1,2,5..', interactive=True)
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -453,9 +461,10 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                                 dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                             with gr.Row():
-                                dd_max_per_img_b = gr.Slider(label='Max detection number (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
+                                dd_max_per_img_b = gr.Slider(label='Max detection (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
                                 dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=80)
-
+                            with gr.Row():
+                                dd_select_masks_b = gr.Textbox(label='Select masks to process (B)', value='', placeholder='input mask numbers to process e.g) 1,2,5..', interactive=True)
                     dd_model_b.change(
                         fn=self.show_classes,
                         inputs=[dd_model_b, dd_classes_b],
@@ -524,6 +533,18 @@ class MuDetectionDetailerScript(scripts.Script):
                         with gr.Row():
                             if not is_img2img:
                                 dd_image = gr.Image(label='Image', type="pil")
+
+                        with gr.Group(visible=False) as select_group_a:
+                            with gr.Row(scale=4):
+                                labels_a = gr.Dropdown(label="Detected masks (A)", choices=[], values=[], multiselect=True, interactive=True, scale=3)
+                                select_options_a = gr.CheckboxGroup(choices=["sync"], value=["sync"], label="options", show_label=False, interactive=True, scale=1)
+                                masks_a = gr.Textbox(label="Detected masks (A)", value="", visible=False)
+                        with gr.Group(visible=False) as select_group_b:
+                            with gr.Row(scale=4):
+                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True, scale=3)
+                                select_options_b = gr.CheckboxGroup(choices=["sync"], value=["sync"], label="options", show_label=False, interactive=True, scale=1)
+                                masks_b = gr.Textbox(label="Detected masks (B)", value="", visible=False)
+
                         with gr.Row():
                             if not is_img2img:
                                 dd_import_prompt = gr.Button(value='Import prompt', interactive=False, variant="secondary")
@@ -554,6 +575,37 @@ class MuDetectionDetailerScript(scripts.Script):
                             outputs=[generation_info, dd_import_prompt],
                         )
 
+                    # setup labels_a, labels_b events
+                    def select_masks(select, selected, options, label="A"):
+                        select = ",".join(select)
+                        if "sync" in options:
+                            selected = select
+                        else:
+                            selected += "," + select
+                        selected = parse_select_masks(selected, label)
+                        selected = selected[label]
+                        selected = ",".join(zip_ranges(selected))
+
+                        return selected
+
+                    labels_args = dict(
+                        fn=lambda a,b,c: select_masks(a, b, c, label="A"),
+                        inputs=[labels_a, dd_select_masks_a, select_options_a],
+                        outputs=[dd_select_masks_a],
+                        show_progress=False,
+                    )
+                    labels_a.select(**labels_args)
+                    labels_a.input(**labels_args)
+
+                    labels_args = dict(
+                        fn=lambda a,b: select_masks(a, b, c, label="B"),
+                        inputs=[labels_b, dd_select_masks_b, select_options_b],
+                        outputs=[dd_select_masks_a],
+                        show_progress=False,
+                    )
+                    labels_b.select(**labels_args)
+                    labels_b.input(**labels_args)
+
                     dummy_component = gr.Label(visible=False)
 
             dd_model_a.change(
@@ -576,6 +628,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_conf_a, "MuDDetailer conf a"),
                 (dd_max_per_img_a, "MuDDetailer max detection a"),
                 (dd_detect_order_a, "MuDDetailer detect order a"),
+                (dd_select_masks_a, "MuDDetailer select masks a"),
                 (dd_dilation_factor_a, "MuDDetailer dilation a"),
                 (dd_offset_x_a, "MuDDetailer offset x a"),
                 (dd_offset_y_a, "MuDDetailer offset y a"),
@@ -586,6 +639,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_conf_b, "MuDDetailer conf b"),
                 (dd_max_per_img_b, "MuDDetailer max detection b"),
                 (dd_detect_order_b, "MuDDetailer detect order b"),
+                (dd_select_masks_b, "MuDDetailer select masks b"),
                 (dd_dilation_factor_b, "MuDDetailer dilation b"),
                 (dd_offset_x_b, "MuDDetailer offset x b"),
                 (dd_offset_y_b, "MuDDetailer offset y b"),
@@ -697,13 +751,15 @@ class MuDetectionDetailerScript(scripts.Script):
                     use_prompt_edit_2,
                     dd_model_a, dd_classes_a,
                     dd_conf_a, dd_max_per_img_a,
-                    dd_detect_order_a, dd_dilation_factor_a,
+                    dd_detect_order_a, dd_select_masks_a,
+                    dd_dilation_factor_a,
                     dd_offset_x_a, dd_offset_y_a,
                     dd_prompt, dd_neg_prompt,
                     dd_preprocess_b, dd_bitwise_op,
                     dd_model_b, dd_classes_b,
                     dd_conf_b, dd_max_per_img_b,
-                    dd_detect_order_b, dd_dilation_factor_b,
+                    dd_detect_order_b, dd_select_masks_a,
+                    dd_dilation_factor_b,
                     dd_offset_x_b, dd_offset_y_b,
                     dd_prompt_2, dd_neg_prompt_2,
                     dd_mask_blur, dd_denoising_strength,
@@ -847,7 +903,39 @@ class MuDetectionDetailerScript(scripts.Script):
                     gal.append(g["name"])
             gal.append(outimage)
 
-            return image if input is None else gr.update(), gal, geninfo, plaintext_to_html(info)
+            # prepare outputs
+            masks_a = processed.masks_a
+            labs_a = []
+            bboxes = masks_a.get("bboxes", None)
+            if bboxes is not None:
+                scores = masks_a["scores"]
+                # convert ndarray to list
+                bboxes = [bbox.tolist() for bbox in bboxes]
+                scores = [score.tolist() for score in scores]
+                masks_a["scores"] = scores
+                masks_a["bboxes"] = bboxes
+                labs_a = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_a["labels"])]
+
+            masks_b = processed.masks_b
+            labs_b = []
+            bboxes = masks_b.get("bboxes", None)
+            if bboxes is not None:
+                bboxes = masks_b["bboxes"]
+                scores = masks_b["scores"]
+                bboxes = [bbox.tolist() for bbox in bboxes]
+                scores = [score.tolist() for score in scores]
+                masks_b["scores"] = scores
+                masks_b["bboxes"] = bboxes
+                labs_b = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_b["labels"])]
+
+            return (image if input is None else gr.update(), gal, geninfo,
+                gr.update(visible=True if len(labs_a) > 1 else False),
+                gr.update(visible=True if len(labs_b) > 1 else False),
+                json.dumps([masks_a]),
+                json.dumps([masks_b]),
+                gr.update(choices=labs_a, visible=True if len(labs_a) > 1 else False),
+                gr.update(choices=labs_b, visible=True if len(labs_b) > 1 else False),
+                plaintext_to_html(info))
 
         def import_image_from_gallery(gallery, idx):
             if len(gallery) == 0:
@@ -916,7 +1004,13 @@ class MuDetectionDetailerScript(scripts.Script):
                             fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
                             _js="mudd_inpainting",
                             inputs=[ dummy_component, dummy_component, dummy_component, dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], *get_txt2img_components(), *all_args, *script_args],
-                            outputs=[dd_image, DD.components["txt2img_gallery"], DD.components["generation_info_txt2img"], DD.components["html_info_txt2img"]],
+                            outputs=[
+                                dd_image,
+                                DD.components["txt2img_gallery"],
+                                DD.components["generation_info_txt2img"],
+                                select_group_a, select_group_b,
+                                masks_a, masks_b, labels_a, labels_b,
+                                DD.components["html_info_txt2img"]],
                             show_progress=False,
                         )
                     else:
@@ -924,7 +1018,13 @@ class MuDetectionDetailerScript(scripts.Script):
                             fn=wrap_gradio_gpu_call(run_inpaint, extra_outputs=[None, '', '']),
                             _js="mudd_inpainting_img2img",
                             inputs=[ dummy_component, dummy_component, dummy_component, DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_txt2img"], *get_img2img_components(), *all_args, *script_args],
-                            outputs=[DD.components["img2img_image"], DD.components["img2img_gallery"], DD.components["generation_info_img2img"], DD.components["html_info_img2img"]],
+                            outputs=[
+                                DD.components["img2img_image"],
+                                DD.components["img2img_gallery"],
+                                DD.components["generation_info_img2img"],
+                                select_group_a, select_group_b,
+                                masks_a, masks_b, labels_a, labels_b,
+                                DD.components["html_info_img2img"]],
                             show_progress=False,
                         )
 
@@ -990,13 +1090,15 @@ class MuDetectionDetailerScript(scripts.Script):
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_detect_order_a, dd_dilation_factor_a,
+                     dd_detect_order_a, dd_select_masks_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_detect_order_b, dd_dilation_factor_b,
+                     dd_detect_order_b, dd_select_masks_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1041,19 +1143,34 @@ class MuDetectionDetailerScript(scripts.Script):
         prompt = dd_prompt if use_prompt_edit and dd_prompt else p_txt.prompt
         neg_prompt = dd_neg_prompt if use_prompt_edit and dd_neg_prompt else p_txt.negative_prompt
 
+        # prepare dd_select_masks_*
+        selected_a = parse_select_masks(dd_select_masks_a, "A")
+        selected_b = parse_select_masks(dd_select_masks_b, "B")
+        select_masks_a = selected_a["A"]
+        select_masks_b = selected_b["B"]
+        #dd_select_masks_a = ",".join(zip_ranges(select_masks_a))
+        #dd_select_masks_b = ",".join(zip_ranges(select_masks_b))
+
+        select_masks_a = [x-1 for x in select_masks_a if x - 1 >= 0]
+        select_masks_b = [x-1 for x in select_masks_b if x - 1 >= 0]
+        select_masks_a = None if len(select_masks_a) == 0 else select_masks_a
+        select_masks_b = None if len(select_masks_b) == 0 else select_masks_b
+
         # ddetailer info
         extra_params = ddetailer_extra_params(
             use_prompt_edit,
             use_prompt_edit_2,
             dd_model_a, dd_classes_a,
             dd_conf_a, dd_max_per_img_a,
-            dd_detect_order_a, dd_dilation_factor_a,
+            dd_detect_order_a, dd_select_masks_a,
+            dd_dilation_factor_a,
             dd_offset_x_a, dd_offset_y_a,
             dd_prompt, dd_neg_prompt,
             dd_preprocess_b, dd_bitwise_op,
             dd_model_b, dd_classes_b,
             dd_conf_b, dd_max_per_img_b,
-            dd_detect_order_b, dd_dilation_factor_b,
+            dd_detect_order_b, dd_select_masks_b,
+            dd_dilation_factor_b,
             dd_offset_x_b, dd_offset_y_b,
             dd_prompt_2, dd_neg_prompt_2,
             dd_mask_blur, dd_denoising_strength,
@@ -1114,6 +1231,8 @@ class MuDetectionDetailerScript(scripts.Script):
 
         processed = Processed(p, [])
 
+        detected_a = {}
+        detected_b = {}
         output_images = []
         for n in range(ddetail_count):
             devices.torch_gc()
@@ -1130,18 +1249,29 @@ class MuDetectionDetailerScript(scripts.Script):
                 label_b_pre = "B"
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
+
+                detected_a = {"bboxes": results_b_pre[1], "labels": results_b_pre[0], "scores": results_b_pre[3]}
+
+                print(f"Total {len(results_b_pre[1])} are detected, using model {label_b_pre}...")
+
                 masks_b_pre = create_segmasks(results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
                 masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
                 if (len(masks_b_pre) > 0):
                     results_b_pre = update_result_masks(results_b_pre, masks_b_pre)
-                    segmask_preview_b = create_segmask_preview(results_b_pre, init_image)
+                    segmask_preview_b = create_segmask_preview(results_b_pre, init_image, select_masks_b)
                     shared.state.assign_current_image(segmask_preview_b)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_b, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_b_pre)
-                    state.job_count += gen_count
-                    print(f"Processing {gen_count} model {label_b_pre} detections for output generation {p_txt._idx + 1}.")
+
+                    if select_masks_b:
+                        gen_selected = [i for i in select_masks_b if i < len(masks_b_pre)]
+                    else:
+                        gen_selected = range(len(masks_b_pre))
+                    state.job_count += len(gen_selected)
+
+                    print(f"Processing {len(gen_selected)} model {label_b_pre} detections for output generation {p_txt._idx + 1}.")
 
                     p2 = copy(p)
                     p2.seed = start_seed
@@ -1153,10 +1283,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     # get img2img sampler steps and update total tqdm
                     _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                    if gen_count > 0 and shared.total_tqdm._tqdm is not None:
-                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * gen_count)
+                    if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
-                    for i in range(gen_count):
+                    for i in gen_selected:
                         p2.image_mask = masks_b_pre[i]
                         if ( opts.mudd_save_masks):
                             images.save_image(masks_b_pre[i], p_txt.outpath_samples, "", start_seed, p2.prompt, opts.samples_format, info=info, p=p2)
@@ -1166,7 +1296,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         p2.subseed = processed.subseed + 1
                         p2.init_images = processed.images
 
-                    if (gen_count > 0):
+                    if (len(gen_selected) > 0):
                         output_images[n] = processed.images[0]
                         init_image = processed.images[0]
 
@@ -1180,6 +1310,10 @@ class MuDetectionDetailerScript(scripts.Script):
                     label_a = dd_bitwise_op
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 results_a = sort_results(results_a, dd_detect_order_a)
+                detected_a = {"bboxes": results_a[1], "labels": results_a[0], "scores": results_a[3]}
+
+                print(f"Total {len(results_a[1])} are detected, using model {label_a}...")
+
                 masks_a = create_segmasks(results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
@@ -1187,6 +1321,10 @@ class MuDetectionDetailerScript(scripts.Script):
                     label_b = "B"
                     results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
                     results_b = sort_results(results_b, dd_detect_order_b)
+                    detected_b = {"bboxes": results_b[1], "labels": results_b[0], "scores": results_b[3]}
+
+                    print(f"Total {len(results_b[1])} are detected, using model {label_b}...")
+
                     masks_b = create_segmasks(results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
                     masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
@@ -1209,22 +1347,29 @@ class MuDetectionDetailerScript(scripts.Script):
                 
                 if (len(masks_a) > 0):
                     results_a = update_result_masks(results_a, masks_a)
-                    segmask_preview_a = create_segmask_preview(results_a, init_image)
+                    segmask_preview_a = create_segmask_preview(results_a, init_image, select_masks_a)
                     shared.state.assign_current_image(segmask_preview_a)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_a)
-                    state.job_count += gen_count
-                    print(f"Processing {gen_count} model {label_a} detections for output generation {p_txt._idx + 1}.")
+
+                    if select_masks_b:
+                        gen_selected = [i for i in select_masks_b if i < len(masks_a)]
+                    else:
+                        gen_selected = range(len(masks_a))
+
+                    state.job_count += len(gen_selected)
+
+                    print(f"Processing {len(gen_selected)} model {label_a} detections for output generation {p_txt._idx + 1}.")
                     p.seed = start_seed
                     p.init_images = [init_image]
 
                     # get img2img sampler steps and update total tqdm
                     _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                    if gen_count > 0 and shared.total_tqdm._tqdm is not None:
-                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * gen_count)
+                    if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
-                    for i in range(gen_count):
+                    for i in gen_selected:
                         p.image_mask = masks_a[i]
                         if ( opts.mudd_save_masks):
                             images.save_image(masks_a[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
@@ -1234,7 +1379,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         p.subseed = processed.subseed + 1
                         p.init_images = processed.images
                     
-                    if gen_count > 0 and len(processed.images) > 0:
+                    if len(gen_selected) > 0 and len(processed.images) > 0:
                         output_images[n] = processed.images[0]
   
                 else: 
@@ -1248,6 +1393,8 @@ class MuDetectionDetailerScript(scripts.Script):
             if p.extra_generation_params.get("Noise multiplier") is not None:
                 p.extra_generation_params.pop("Noise multiplier")
 
+        processed.masks_a = detected_a
+        processed.masks_b = detected_b
         return processed
 
     def postprocess_image(self, p, pp, *_args):
@@ -1258,13 +1405,15 @@ class MuDetectionDetailerScript(scripts.Script):
             (enabled, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_detect_order_a, dd_dilation_factor_a,
+                     dd_detect_order_a, dd_select_masks_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_detect_order_b, dd_dilation_factor_b,
+                     dd_detect_order_b, dd_select_masks_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1283,6 +1432,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_conf_a = args.get("conf a", 30)
             dd_max_per_img_a = args.get("max detection a", 0)
             dd_detect_order_a = args.get("detect order a", [])
+            dd_select_masks_a = args.get("select masks a", '')
             dd_dilation_factor_a = args.get("dilation a", 4)
             dd_offset_x_a = args.get("offset x a", 0)
             dd_offset_y_a = args.get("offset y a", 0)
@@ -1297,6 +1447,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_conf_b = args.get("conf b", 30)
             dd_max_per_img_b = args.get("max detection b", 0)
             dd_detect_order_b = args.get("detect order b", [])
+            dd_select_masks_b = args.get("select masks b", '')
             dd_dilation_factor_b = args.get("dilation b", 4)
             dd_offset_x_b = args.get("offset x b", 0)
             dd_offset_y_b = args.get("offset y b", 0)
@@ -1350,13 +1501,15 @@ class MuDetectionDetailerScript(scripts.Script):
         self._postprocess_image(p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_detect_order_a, dd_dilation_factor_a,
+                     dd_detect_order_a, dd_select_masks_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_detect_order_b, dd_dilation_factor_b,
+                     dd_detect_order_b, dd_select_masks_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1422,6 +1575,89 @@ def parse_prompt(x: str):
     res["Negative prompt"] = negative_prompt
 
     return res
+
+
+def parse_select_masks(line, default_lab="A"):
+    """
+    Parse selected masks line
+
+    A:1,B:2-4,A:3-7 => A:[1,3,4,5,6,7] B:[2,3,4]
+    """
+    tmp = [x.strip() for x in line.strip().split(",")]
+
+    parts = {"A": [], "B": []}
+    for x in tmp:
+        if ":" in x:
+            lab, num = x.rsplit(":", 1)
+        else:
+            lab = default_lab
+            num = x
+
+        if '-' in num:
+            nums = [
+                int(x.strip()) for x in num.split("-") if x.strip().isdigit()
+            ]
+            if len(nums) == 2:
+                nums = list(range(nums[0], nums[1] + 1))
+            else:
+                continue
+        elif num != '':
+            nums = [int(num)]
+        else:
+            continue
+
+        if lab.startswith("B"):
+            parts["B"] = parts["B"] + nums
+        elif lab.startswith("A"):
+            parts["A"] = parts["A"] + nums
+        else:
+            continue
+
+    parts["A"] = list(set(parts["A"]))
+    parts["B"] = list(set(parts["B"]))
+    return parts
+
+
+def zip_ranges(inp):
+    """
+    Zip ranges
+
+    2,3,4,7,8,9=>2-4,7-9
+    """
+    if len(inp) == 0:
+        return inp
+
+    inp = list(set(inp))
+
+    start = inp[0]
+    end = inp[0]
+
+    ranges = []
+    for x in inp[1:]:
+        if x == end + 1:
+            end += 1
+            continue
+        else:
+            if start == end:
+                ranges.append(str(start))
+            elif start + 1 == end:
+                ranges.append(str(start))
+                ranges.append(str(end))
+            else:
+                ranges.append(f"{start}-{end}")
+
+            start = end = x
+
+    if start == end:
+        ranges.append(str(start))
+    elif start + 1 == end:
+        ranges.append(str(start))
+        ranges.append(str(end))
+    else:
+        ranges.append(f"{start}-{end}")
+
+    return ranges
+
 
 def modeldataset(model_shortname):
     path = modelpath(model_shortname)
@@ -1491,7 +1727,7 @@ def update_result_masks(results, masks):
         results[2][i] = boolmask
     return results
 
-def create_segmask_preview(results, image):
+def create_segmask_preview(results, image, selected=None):
     use_mediapipe_preview = shared.opts.data.get("mudd_use_mediapipe_preview", False)
     if use_mediapipe_preview and len(results) > 4:
         image = results[4]
@@ -1504,9 +1740,17 @@ def create_segmask_preview(results, image):
     cv2_image = np.array(image)
     cv2_image = cv2_image[:, :, ::-1].copy()
 
+    if selected is None:
+        selected = []
     for i in range(len(segms)):
         color = np.full_like(cv2_image, np.random.randint(100, 256, (1, 3), dtype=np.uint8))
         alpha = 0.2
+        if i in selected:
+            # selected masks change color to white and draw bbox rectangle on it
+            #color = np.full_like(cv2_image, np.array([[255, 255, 255]], dtype=np.uint8))
+            bbox = bboxes[i]
+            cv2.rectangle(cv2_image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 3, cv2.LINE_AA)
+            alpha = 0.3
         color_image = cv2.addWeighted(cv2_image, alpha, color, 1-alpha, 0)
         cv2_mask = segms[i].astype(np.uint8) * 255
         cv2_mask_bool = np.array(segms[i], dtype=bool)
@@ -1518,11 +1762,12 @@ def create_segmask_preview(results, image):
         text_color = tuple([int(x) for x in ( color[0][0] - 100 )])
         name = labels[i]
         score = scores[i]
+
         if score > 0.0:
             score = str(score)[:4]
-            text = name + ":" + score
+            text = name + ' ' + score + f":{i+1}"
         else:
-            text = name
+            text = name + f":{i+1}"
         (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, 0.4, 1)
         cv2.putText(cv2_image, text, (centroid_x - int(w/2), centroid_y), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color, 1, cv2.LINE_AA)
     
