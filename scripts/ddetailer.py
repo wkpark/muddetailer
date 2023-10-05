@@ -3,6 +3,7 @@ import re
 import sys
 import cv2
 from PIL import Image
+import math
 import numpy as np
 import gradio as gr
 import json
@@ -201,13 +202,13 @@ def ddetailer_extra_params(
     use_prompt_edit_2,
     dd_model_a, dd_classes_a,
     dd_conf_a, dd_max_per_img_a,
-    dd_dilation_factor_a,
+    dd_detect_order_a, dd_dilation_factor_a,
     dd_offset_x_a, dd_offset_y_a,
     dd_prompt, dd_neg_prompt,
     dd_preprocess_b, dd_bitwise_op,
     dd_model_b, dd_classes_b,
     dd_conf_b, dd_max_per_img_b,
-    dd_dilation_factor_b,
+    dd_detect_order_b, dd_dilation_factor_b,
     dd_offset_x_b, dd_offset_y_b,
     dd_prompt_2, dd_neg_prompt_2,
     dd_mask_blur, dd_denoising_strength,
@@ -243,11 +244,15 @@ def ddetailer_extra_params(
     }
     if dd_classes_a is not None and len(dd_classes_a) > 0:
         params["MuDDetailer classes a"] = ",".join(dd_classes_a)
+    if dd_detect_order_a is not None and len(dd_detect_order_a) > 0:
+        params["MuDDetailer detect order a"] = ",".join(dd_detect_order_a)
 
     if dd_model_b != "None":
         params["MuDDetailer model b"] = dd_model_b
         if dd_classes_b is not None and len(dd_classes_b) > 0:
             params["MuDDetailer classes b"] = ",".join(dd_classes_b)
+        if dd_detect_order_b is not None and len(dd_detect_order_b) > 0:
+            params["MuDDetailer detect order b"] = ",".join(dd_detect_order_b)
         params["MuDDetailer preprocess b"] = dd_preprocess_b
         params["MuDDetailer bitwise"] = dd_bitwise_op
         params["MuDDetailer conf b"] = dd_conf_b
@@ -404,6 +409,7 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                             with gr.Row():
                                 dd_max_per_img_a = gr.Slider(label='Max detection number (A) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
+                                dd_detect_order_a = gr.CheckboxGroup(label="Detect order (A)", choices=["area", "position"], interactive=True, value=[], min_width=80)
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -448,6 +454,7 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                             with gr.Row():
                                 dd_max_per_img_b = gr.Slider(label='Max detection number (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
+                                dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=80)
 
                     dd_model_b.change(
                         fn=self.show_classes,
@@ -568,6 +575,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_classes_a, "MuDDetailer classes a"),
                 (dd_conf_a, "MuDDetailer conf a"),
                 (dd_max_per_img_a, "MuDDetailer max detection a"),
+                (dd_detect_order_a, "MuDDetailer detect order a"),
                 (dd_dilation_factor_a, "MuDDetailer dilation a"),
                 (dd_offset_x_a, "MuDDetailer offset x a"),
                 (dd_offset_y_a, "MuDDetailer offset y a"),
@@ -577,6 +585,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_classes_b, "MuDDetailer classes b"),
                 (dd_conf_b, "MuDDetailer conf b"),
                 (dd_max_per_img_b, "MuDDetailer max detection b"),
+                (dd_detect_order_b, "MuDDetailer detect order b"),
                 (dd_dilation_factor_b, "MuDDetailer dilation b"),
                 (dd_offset_x_b, "MuDDetailer offset x b"),
                 (dd_offset_y_b, "MuDDetailer offset y b"),
@@ -688,13 +697,13 @@ class MuDetectionDetailerScript(scripts.Script):
                     use_prompt_edit_2,
                     dd_model_a, dd_classes_a,
                     dd_conf_a, dd_max_per_img_a,
-                    dd_dilation_factor_a,
+                    dd_detect_order_a, dd_dilation_factor_a,
                     dd_offset_x_a, dd_offset_y_a,
                     dd_prompt, dd_neg_prompt,
                     dd_preprocess_b, dd_bitwise_op,
                     dd_model_b, dd_classes_b,
                     dd_conf_b, dd_max_per_img_b,
-                    dd_dilation_factor_b,
+                    dd_detect_order_b, dd_dilation_factor_b,
                     dd_offset_x_b, dd_offset_y_b,
                     dd_prompt_2, dd_neg_prompt_2,
                     dd_mask_blur, dd_denoising_strength,
@@ -981,13 +990,13 @@ class MuDetectionDetailerScript(scripts.Script):
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_dilation_factor_a,
+                     dd_detect_order_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_dilation_factor_b,
+                     dd_detect_order_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1038,13 +1047,13 @@ class MuDetectionDetailerScript(scripts.Script):
             use_prompt_edit_2,
             dd_model_a, dd_classes_a,
             dd_conf_a, dd_max_per_img_a,
-            dd_dilation_factor_a,
+            dd_detect_order_a, dd_dilation_factor_a,
             dd_offset_x_a, dd_offset_y_a,
             dd_prompt, dd_neg_prompt,
             dd_preprocess_b, dd_bitwise_op,
             dd_model_b, dd_classes_b,
             dd_conf_b, dd_max_per_img_b,
-            dd_dilation_factor_b,
+            dd_detect_order_b, dd_dilation_factor_b,
             dd_offset_x_b, dd_offset_y_b,
             dd_prompt_2, dd_neg_prompt_2,
             dd_mask_blur, dd_denoising_strength,
@@ -1120,6 +1129,7 @@ class MuDetectionDetailerScript(scripts.Script):
             if (dd_model_b != "None" and dd_preprocess_b): 
                 label_b_pre = "B"
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
+                results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
                 masks_b_pre = create_segmasks(results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
                 masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
@@ -1169,12 +1179,14 @@ class MuDetectionDetailerScript(scripts.Script):
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_a = dd_bitwise_op
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
+                results_a = sort_results(results_a, dd_detect_order_a)
                 masks_a = create_segmasks(results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_b = "B"
                     results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
+                    results_b = sort_results(results_b, dd_detect_order_b)
                     masks_b = create_segmasks(results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
                     masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
@@ -1246,13 +1258,13 @@ class MuDetectionDetailerScript(scripts.Script):
             (enabled, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_dilation_factor_a,
+                     dd_detect_order_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_dilation_factor_b,
+                     dd_detect_order_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1270,6 +1282,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_classes_a = args.get("classes a", [])
             dd_conf_a = args.get("conf a", 30)
             dd_max_per_img_a = args.get("max detection a", 0)
+            dd_detect_order_a = args.get("detect order a", [])
             dd_dilation_factor_a = args.get("dilation a", 4)
             dd_offset_x_a = args.get("offset x a", 0)
             dd_offset_y_a = args.get("offset y a", 0)
@@ -1283,6 +1296,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_classes_b = args.get("classes b", [])
             dd_conf_b = args.get("conf b", 30)
             dd_max_per_img_b = args.get("max detection b", 0)
+            dd_detect_order_b = args.get("detect order b", [])
             dd_dilation_factor_b = args.get("dilation b", 4)
             dd_offset_x_b = args.get("offset x b", 0)
             dd_offset_y_b = args.get("offset y b", 0)
@@ -1314,19 +1328,35 @@ class MuDetectionDetailerScript(scripts.Script):
         if dd_classes_b == "None":
             dd_classes_b = None
 
+        if dd_detect_order_a is str:
+            if dd_detect_order_a.find(",") != -1:
+                dd_detect_order_a = [x.strip() for x in dd_detect_order_a.split(",")]
+        if dd_detect_order_a == "None":
+            dd_detect_order_a = None
+
+        if dd_detect_order_b is str:
+            if dd_detect_order_b.find(",") != -1:
+                dd_detect_order_b = [x.strip() for x in dd_detect_order_b.split(",")]
+        if dd_detect_order_b == "None":
+            dd_detect_order_b = None
+
+        valid_orders = ["area", "position"]
+        dd_detect_order_a = list(set(valid_orders) & set(dd_detect_order_a))
+        dd_detect_order_b = list(set(valid_orders) & set(dd_detect_order_b))
+
         if not enabled:
             return
 
         self._postprocess_image(p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
-                     dd_dilation_factor_a,
+                     dd_detect_order_a, dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
                      dd_conf_b, dd_max_per_img_b,
-                     dd_dilation_factor_b,
+                     dd_detect_order_b, dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1418,6 +1448,42 @@ def modelpath(model_shortname):
             return path
 
     raise gr.Error("No matched model found.")
+
+
+def sort_results(results, orders):
+    if len(results[1]) <= 1 or orders is None or len(orders) == 0:
+        return results
+
+    bboxes = results[1]
+    items = len(bboxes)
+    order = range(items)
+
+    # get max size bbox
+    sortkey = lambda bbox: -(bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+    tmpord = sorted(order, key=lambda i: sortkey(bboxes[i]))
+    # setup marginal variables ~0.2
+    bbox = bboxes[tmpord[0]]
+    area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+    marginarea = int(area * 0.2)
+    marginwidth = int(math.sqrt(area) * 0.2)
+
+    # sort by position (left to light)
+    if "position" in orders:
+        sortkey = lambda bbox: int(int((bbox[0] + (bbox[2] - bbox[0]) * 0.5)/marginwidth)*marginwidth)
+        order = sorted(order, key=lambda i: sortkey(bboxes[i]))
+
+    # sort by area
+    if "area" in orders:
+        sortkey = lambda bbox: -int(int((bbox[2] - bbox[0]) * (bbox[3] - bbox[1])/marginarea)*marginarea)
+        order = sorted(order, key=lambda i: sortkey(bboxes[i]))
+
+    # sort all results
+    results[1] = [bboxes[i] for i in order]
+    results[0] = [results[0][i] for i in order]
+    results[2] = [results[2][i] for i in order]
+    results[3] = [results[3][i] for i in order]
+    return results
+
 
 def update_result_masks(results, masks):
     for i in range(len(masks)):
@@ -1901,7 +1967,7 @@ def on_infotext_pasted(infotext, results):
         if "model" in k:
             updates[k] = v.replace("\\", "/")
 
-        if k.find(" classes ") > 0:
+        if k.find(" classes ") > 0 or k.find(" detect order") > 0:
             if v[0] == '"' and v[-1] == '"':
                 v = v[1:-1]
             arr = v.split(",")
