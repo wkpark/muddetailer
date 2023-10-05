@@ -239,7 +239,7 @@ def ddetailer_extra_params(
         "MuDDetailer CLIP skip": dd_clipskip,
     }
     if dd_classes_a is not None and len(dd_classes_a) > 0:
-        params["MuDDetailer classes a"] = ",".join(dd_classes_a),
+        params["MuDDetailer classes a"] = ",".join(dd_classes_a)
 
     if dd_model_b != "None":
         params["MuDDetailer model b"] = dd_model_b
