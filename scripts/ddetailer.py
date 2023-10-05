@@ -713,7 +713,7 @@ class MuDetectionDetailerScript(scripts.Script):
             # image from gr.Image() or gr.Gallery()
             image = input if input is not None else import_image_from_gallery(gallery, gallery_idx)
             if image is None:
-                return gr.update() * 4
+                return gr.update(), gr.update(), generation_info, "No input image found"
 
             # convert to RGB
             image = image.convert("RGB")
