@@ -1457,7 +1457,8 @@ def create_segmask_preview(results, image):
             text = name + ":" + score
         else:
             text = name
-        cv2.putText(cv2_image, text, (centroid_x - 30, centroid_y), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color, 1, cv2.LINE_AA)
+        (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, 0.4, 1)
+        cv2.putText(cv2_image, text, (centroid_x - int(w/2), centroid_y), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color, 1, cv2.LINE_AA)
     
     if ( len(segms) > 0):
         preview_image = Image.fromarray(cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB))
