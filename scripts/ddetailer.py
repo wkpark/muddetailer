@@ -200,12 +200,14 @@ def ddetailer_extra_params(
     use_prompt_edit,
     use_prompt_edit_2,
     dd_model_a, dd_classes_a,
-    dd_conf_a, dd_dilation_factor_a,
+    dd_conf_a, dd_max_per_img_a,
+    dd_dilation_factor_a,
     dd_offset_x_a, dd_offset_y_a,
     dd_prompt, dd_neg_prompt,
     dd_preprocess_b, dd_bitwise_op,
     dd_model_b, dd_classes_b,
-    dd_conf_b, dd_dilation_factor_b,
+    dd_conf_b, dd_max_per_img_b,
+    dd_dilation_factor_b,
     dd_offset_x_b, dd_offset_y_b,
     dd_prompt_2, dd_neg_prompt_2,
     dd_mask_blur, dd_denoising_strength,
@@ -222,6 +224,7 @@ def ddetailer_extra_params(
         "MuDDetailer neg prompt b": dd_neg_prompt_2,
         "MuDDetailer model a": dd_model_a,
         "MuDDetailer conf a": dd_conf_a,
+        "MuDDetailer max detection a": dd_max_per_img_a,
         "MuDDetailer dilation a": dd_dilation_factor_a,
         "MuDDetailer offset x a": dd_offset_x_a,
         "MuDDetailer offset y a": dd_offset_y_a,
@@ -248,6 +251,7 @@ def ddetailer_extra_params(
         params["MuDDetailer preprocess b"] = dd_preprocess_b
         params["MuDDetailer bitwise"] = dd_bitwise_op
         params["MuDDetailer conf b"] = dd_conf_b
+        params["MuDDetailer max detection b"] = dd_max_per_img_b
         params["MuDDetailer dilation b"] = dd_dilation_factor_b
         params["MuDDetailer offset x b"] = dd_offset_x_b
         params["MuDDetailer offset y b"] = dd_offset_y_b
@@ -361,7 +365,7 @@ class MuDetectionDetailerScript(scripts.Script):
             model_list = list_models(dd_models_path)
             mp_models = ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
             if is_img2img:
-                info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint at full res ON, denoise <0.5</p>")
+                info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
             else:
                 info = gr.HTML("")
             with gr.Group(), gr.Tabs():
@@ -393,12 +397,13 @@ class MuDetectionDetailerScript(scripts.Script):
                                 )
                         with gr.Group(visible=False) as model_a_options:
                             with gr.Row():
-                                dd_conf_a = gr.Slider(label='Detection confidence threshold % (A)', minimum=0, maximum=100, step=1, value=30)
-                                dd_dilation_factor_a = gr.Slider(label='Dilation factor (A)', minimum=0, maximum=255, step=1, value=4)
-
+                                dd_conf_a = gr.Slider(label='Confidence threshold % (A)', minimum=0, maximum=100, step=1, value=30, min_width=80)
+                                dd_dilation_factor_a = gr.Slider(label='Dilation factor (A)', minimum=0, maximum=255, step=1, value=4, min_width=80)
                             with gr.Row():
-                                dd_offset_x_a = gr.Slider(label='X offset (A)', minimum=-200, maximum=200, step=1, value=0)
-                                dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0)
+                                dd_offset_x_a = gr.Slider(label='X offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
+                                dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
+                            with gr.Row():
+                                dd_max_per_img_a = gr.Slider(label='Max detection number (A) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -435,14 +440,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Group(visible=False) as model_b_options:
                             with gr.Row():
-                                dd_conf_b = gr.Slider(label='Detection confidence threshold % (B)', minimum=0, maximum=100, step=1, value=30)
-                                dd_dilation_factor_b = gr.Slider(label='Dilation factor (B)', minimum=0, maximum=255, step=1, value=4)
+                                dd_conf_b = gr.Slider(label='Confidence threshold % (B)', minimum=0, maximum=100, step=1, value=30, min_width=80)
+                                dd_dilation_factor_b = gr.Slider(label='Dilation factor (B)', minimum=0, maximum=255, step=1, value=4, min_width=80)
 
                             with gr.Row():
-                                dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0)
-                                dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0)
+                                dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
+                                dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
                             with gr.Row():
-                                dd_preprocess_b = gr.Checkbox(label='Inpaint model B detections before inpaint model A detections')
+                                dd_max_per_img_b = gr.Slider(label='Max detection number (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
 
                     dd_model_b.change(
                         fn=self.show_classes,
@@ -451,37 +456,45 @@ class MuDetectionDetailerScript(scripts.Script):
                     )
 
             with gr.Group(visible=False) as options:
-                gr.HTML(value="<p>Inpainting options:</p>", visible=(not is_img2img))
-                with gr.Row():
-                    dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4, visible=(not is_img2img))
-                    dd_denoising_strength = gr.Slider(label='Denoising strength', minimum=0.0, maximum=1.0, step=0.01, value=0.4, visible=(not is_img2img))
+                with gr.Accordion("Inpainting options"):
+                    with gr.Row():
+                        dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4)
+                        dd_denoising_strength = gr.Slider(label='Denoising strength', minimum=0.0, maximum=1.0, step=0.01, value=0.4)
 
-                sampler_names = [sampler.name for sampler in sd_samplers.all_samplers]
-                with gr.Column(variant="compact"):
-                    dd_inpaint_full_res = gr.Checkbox(label='Inpaint at full resolution ', value=True, visible = (not is_img2img))
-                    dd_inpaint_full_res_padding = gr.Slider(label='Inpaint at full resolution padding, pixels ', minimum=0, maximum=256, step=4, value=32, visible=(not is_img2img))
+                    sampler_names = [sampler.name for sampler in sd_samplers.all_samplers]
+                    with gr.Column(variant="compact"):
+                        dd_inpaint_full_res = gr.Checkbox(label='Inpaint mask only', value=True)
+                        dd_inpaint_full_res_padding = gr.Slider(label='Inpaint only masked padding, pixels', minimum=0, maximum=256, step=4, value=32)
+                    with gr.Group(visible=False) as model_b_options_2:
+                        with gr.Row():
+                            dd_preprocess_b = gr.Checkbox(label='Inpaint B detections before inpainting A')
 
-                    with gr.Accordion("Advanced options", open=False) as advanced:
-                        gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
-                        with gr.Column():
-                            with gr.Row():
-                                dd_noise_multiplier = gr.Slider(label='Use noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0)
-                                dd_cfg_scale = gr.Slider(label='Use CFG Scale', minimum=0, maximum=30, step=0.5, value=0)
-                            with gr.Row():
-                                dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler")
-                                dd_steps = gr.Slider(label='Use sampling steps', minimum=0, maximum=120, step=1, value=0)
-                        with gr.Column():
-                            with gr.Row():
-                                dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint")
-                                create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
+                    with gr.Group(visible=False) as operation:
+                        gr.HTML(value="<p>Mask operation:</p>")
+                        with gr.Row():
+                            dd_bitwise_op = gr.Radio(label='Bitwise operation', choices=['None', 'A&B', 'A-B'], value="None")
 
-                                dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae")
-                                create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
+                with gr.Accordion("Advanced options", open=False) as advanced:
+                    gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
+                    with gr.Column():
+                        with gr.Row():
+                            dd_noise_multiplier = gr.Slider(label='Use noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0)
+                            dd_cfg_scale = gr.Slider(label='Use CFG Scale', minimum=0, maximum=30, step=0.5, value=0)
+                        with gr.Row():
+                            dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler")
+                            dd_steps = gr.Slider(label='Use sampling steps', minimum=0, maximum=120, step=1, value=0)
+                    with gr.Column():
+                        with gr.Row():
+                            dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint")
+                            create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
 
-                            dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0)
-                        with gr.Column():
-                            with gr.Row():
-                                advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
+                            dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae")
+                            create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
+
+                        dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0)
+                    with gr.Column():
+                        with gr.Row():
+                            advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
                         advanced_reset.select(
                             lambda: {
                                 dd_noise_multiplier: 0,
@@ -497,11 +510,6 @@ class MuDetectionDetailerScript(scripts.Script):
                             outputs=[advanced_reset, dd_noise_multiplier, dd_cfg_scale, dd_sampler, dd_steps, dd_checkpoint, dd_vae, dd_clipskip],
                             show_progress=False,
                         )
-
-                with gr.Group(visible=False) as operation:
-                    gr.HTML(value="<p>A-B operation:</p>")
-                    with gr.Row():
-                        dd_bitwise_op = gr.Radio(label='Bitwise operation', choices=['None', 'A&B', 'A-B'], value="None")
 
                 with gr.Accordion("Inpainting Helper", open=False):
                     gr.HTML(value="<p>If you already have images in the gallery, you can click one of them to select and click the Inpaint button.</p>")
@@ -559,6 +567,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_model_a, "MuDDetailer model a"),
                 (dd_classes_a, "MuDDetailer classes a"),
                 (dd_conf_a, "MuDDetailer conf a"),
+                (dd_max_per_img_a, "MuDDetailer max detection a"),
                 (dd_dilation_factor_a, "MuDDetailer dilation a"),
                 (dd_offset_x_a, "MuDDetailer offset x a"),
                 (dd_offset_y_a, "MuDDetailer offset y a"),
@@ -567,6 +576,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_model_b, "MuDDetailer model b"),
                 (dd_classes_b, "MuDDetailer classes b"),
                 (dd_conf_b, "MuDDetailer conf b"),
+                (dd_max_per_img_b, "MuDDetailer max detection b"),
                 (dd_dilation_factor_b, "MuDDetailer dilation b"),
                 (dd_offset_x_b, "MuDDetailer offset x b"),
                 (dd_offset_y_b, "MuDDetailer offset y b"),
@@ -586,11 +596,12 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_model_b.change(
                 lambda modelname: {
                     model_b_options:gr_show( modelname != "None" ),
+                    model_b_options_2:gr_show( modelname != "None" ),
                     operation:gr_show( modelname != "None" ),
                     use_prompt_edit_2:gr_enable( modelname != "None" )
                 },
                 inputs= [dd_model_b],
-                outputs=[model_b_options, operation, use_prompt_edit_2]
+                outputs=[model_b_options, model_b_options_2, operation, use_prompt_edit_2]
             )
 
             use_prompt_edit.change(
@@ -676,12 +687,14 @@ class MuDetectionDetailerScript(scripts.Script):
                     use_prompt_edit,
                     use_prompt_edit_2,
                     dd_model_a, dd_classes_a,
-                    dd_conf_a, dd_dilation_factor_a,
+                    dd_conf_a, dd_max_per_img_a,
+                    dd_dilation_factor_a,
                     dd_offset_x_a, dd_offset_y_a,
                     dd_prompt, dd_neg_prompt,
                     dd_preprocess_b, dd_bitwise_op,
                     dd_model_b, dd_classes_b,
-                    dd_conf_b, dd_dilation_factor_b,
+                    dd_conf_b, dd_max_per_img_b,
+                    dd_dilation_factor_b,
                     dd_offset_x_b, dd_offset_y_b,
                     dd_prompt_2, dd_neg_prompt_2,
                     dd_mask_blur, dd_denoising_strength,
@@ -967,12 +980,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
-                     dd_conf_a, dd_dilation_factor_a,
+                     dd_conf_a, dd_max_per_img_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
-                     dd_conf_b, dd_dilation_factor_b,
+                     dd_conf_b, dd_max_per_img_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -989,6 +1004,12 @@ class MuDetectionDetailerScript(scripts.Script):
 
         info = ""
         ddetail_count = 1
+
+        # get some global settings
+        use_max_per_img = shared.opts.data.get("mudd_max_per_img", 20)
+        # set max_per_img
+        dd_max_per_img_a = dd_max_per_img_a if dd_max_per_img_a > 0 else use_max_per_img
+        dd_max_per_img_b = dd_max_per_img_b if dd_max_per_img_b > 0 else use_max_per_img
 
         sampler_name = dd_sampler if dd_sampler not in [ "Use same sampler", "Default", "None" ] else p.sampler_name
         if sampler_name in ["PLMS", "UniPC"]:
@@ -1016,12 +1037,14 @@ class MuDetectionDetailerScript(scripts.Script):
             use_prompt_edit,
             use_prompt_edit_2,
             dd_model_a, dd_classes_a,
-            dd_conf_a, dd_dilation_factor_a,
+            dd_conf_a, dd_max_per_img_a,
+            dd_dilation_factor_a,
             dd_offset_x_a, dd_offset_y_a,
             dd_prompt, dd_neg_prompt,
             dd_preprocess_b, dd_bitwise_op,
             dd_model_b, dd_classes_b,
-            dd_conf_b, dd_dilation_factor_b,
+            dd_conf_b, dd_max_per_img_b,
+            dd_dilation_factor_b,
             dd_offset_x_b, dd_offset_y_b,
             dd_prompt_2, dd_neg_prompt_2,
             dd_mask_blur, dd_denoising_strength,
@@ -1096,7 +1119,7 @@ class MuDetectionDetailerScript(scripts.Script):
             # Optional secondary pre-processing run
             if (dd_model_b != "None" and dd_preprocess_b): 
                 label_b_pre = "B"
-                results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b)
+                results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 masks_b_pre = create_segmasks(results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
                 masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
@@ -1145,13 +1168,13 @@ class MuDetectionDetailerScript(scripts.Script):
                 label_a = "A"
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_a = dd_bitwise_op
-                results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a)
+                results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 masks_a = create_segmasks(results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_b = "B"
-                    results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b)
+                    results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
                     masks_b = create_segmasks(results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
                     masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
@@ -1222,12 +1245,14 @@ class MuDetectionDetailerScript(scripts.Script):
         if type(_args[0]) is bool:
             (enabled, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
-                     dd_conf_a, dd_dilation_factor_a,
+                     dd_conf_a, dd_max_per_img_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
-                     dd_conf_b, dd_dilation_factor_b,
+                     dd_conf_b, dd_max_per_img_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1244,6 +1269,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_model_a = args.get("model a", "None")
             dd_classes_a = args.get("classes a", [])
             dd_conf_a = args.get("conf a", 30)
+            dd_max_per_img_a = args.get("max detection a", 0)
             dd_dilation_factor_a = args.get("dilation a", 4)
             dd_offset_x_a = args.get("offset x a", 0)
             dd_offset_y_a = args.get("offset y a", 0)
@@ -1256,6 +1282,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_model_b = args.get("model b", "None")
             dd_classes_b = args.get("classes b", [])
             dd_conf_b = args.get("conf b", 30)
+            dd_max_per_img_b = args.get("max detection b", 0)
             dd_dilation_factor_b = args.get("dilation b", 4)
             dd_offset_x_b = args.get("offset x b", 0)
             dd_offset_y_b = args.get("offset y b", 0)
@@ -1292,12 +1319,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
         self._postprocess_image(p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
-                     dd_conf_a, dd_dilation_factor_a,
+                     dd_conf_a, dd_max_per_img_a,
+                     dd_dilation_factor_a,
                      dd_offset_x_a, dd_offset_y_a,
                      dd_prompt, dd_neg_prompt,
                      dd_preprocess_b, dd_bitwise_op,
                      dd_model_b, dd_classes_b,
-                     dd_conf_b, dd_dilation_factor_b,
+                     dd_conf_b, dd_max_per_img_b,
+                     dd_dilation_factor_b,
                      dd_offset_x_b, dd_offset_y_b,
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
@@ -1490,11 +1519,22 @@ def combine_masks(masks):
     return combined_mask
 
 def on_ui_settings():
-    shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=("muddetailer", "μ DDetailer")))
-    shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=("muddetailer", "μ DDetailer")))
-    shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=("muddetailer", "μ DDetailer")))
-    shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=("muddetailer", "μ DDetailer")))
-    shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=("muddetailer", "μ DDetailer")))
+    section = ("muddetailer", "μ DDetailer")
+    shared.opts.add_option(
+        "mudd_max_per_img",
+        shared.OptionInfo(
+            default=20,
+            label="Maximum Detection number",
+            component=gr.Slider,
+            component_args={"minimum": 1, "maximum": 100, "step": 1},
+            section=section,
+        ),
+    )
+    shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=section))
+    shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=section))
+    shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=section))
+    shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=section))
+    shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
 
 def create_segmasks(results):
     segms = results[2]
@@ -1562,22 +1602,22 @@ def get_device():
 # check validity of models
 check_validity()
 
-def inference(image, modelname, conf_thres, label, classes=None):
+def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100):
     if modelname in ["mediapipe_face_short", "mediapipe_face_full"]:
-        results = mp_detector_face(image, modelname, conf_thres, label, classes)
+        results = mp_detector_face(image, modelname, conf_thres, label, classes, max_per_img)
         return results
     elif modelname in ["mediapipe_face_mesh"]:
-        results = mp_detector_facemesh(image, modelname, conf_thres, label, classes)
+        results = mp_detector_facemesh(image, modelname, conf_thres, label, classes, max_per_img)
         return results
 
     path = modelpath(modelname)
     if ( "mmdet" in path and "bbox" in path ):
-        results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes)
+        results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes, max_per_img)
     elif ( "mmdet" in path and "segm" in path):
-        results = inference_mmdet_segm(image, modelname, conf_thres, label, classes)
+        results = inference_mmdet_segm(image, modelname, conf_thres, label, classes, max_per_img)
     return results
 
-def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
+def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_per_img):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -1588,7 +1628,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
         conf["default_scope"] = "mmyolo"
 
     # setup default values
-    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=20))))
+    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=max_per_img))))
 
     segms = []
     bboxes = []
@@ -1682,7 +1722,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes):
 
     return results
 
-def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
+def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_per_img):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -1693,7 +1733,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes):
         conf["default_scope"] = "mmyolo"
 
     # setup default values
-    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=20))))
+    conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=max_per_img))))
 
     if mmcv_legacy:
         model = init_detector(conf, model_checkpoint, device=model_device)

@@ -5,7 +5,12 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
-def mediapipe_detector_face(image, modelname, confidence, label, classes=None):
+def mediapipe_detector_face(image,
+                            modelname,
+                            confidence,
+                            label,
+                            classes=None,
+                            max_num_faces=100):
     if modelname == "mediapipe_face_short":
         model_selection = 0
     else:
@@ -28,7 +33,7 @@ def mediapipe_detector_face(image, modelname, confidence, label, classes=None):
             return [[]] * 4
 
         preview = npimg.copy()
-        for detection in results.detections:
+        for detection in results.detections[:max_num_faces]:
             #print(mp_face_detection.get_key_point(
             #    detection, mp_face_detection.FaceKeyPoint.NOSE_TIP))
             mp_drawing.draw_detection(preview, detection)
@@ -76,7 +81,8 @@ def mediapipe_detector_facemesh(image,
                                 modelname,
                                 confidence,
                                 label,
-                                classes=None):
+                                classes=None,
+                                max_num_faces=100):
     mp_facemesh = mp.solutions.face_mesh
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
@@ -87,7 +93,7 @@ def mediapipe_detector_facemesh(image,
     bboxes = []
     with mp_facemesh.FaceMesh(static_image_mode=True,
                               min_detection_confidence=confidence,
-                              max_num_faces=20,
+                              max_num_faces=max_num_faces,
                               refine_landmarks=True) as face_detector:
         w, h = image.size
         npimg = np.array(image)
