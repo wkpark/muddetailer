@@ -1083,7 +1083,6 @@ class MuDetectionDetailerScript(scripts.Script):
         processed = Processed(p, [])
 
         output_images = []
-        state.job_count = ddetail_count
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
