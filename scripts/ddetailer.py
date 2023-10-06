@@ -1399,7 +1399,7 @@ def update_result_masks(results, masks):
 def create_segmask_preview(results, image):
     use_mediapipe_preview = shared.opts.data.get("mudd_use_mediapipe_preview", False)
     if use_mediapipe_preview and len(results) > 4:
-        return results[4]
+        image = results[4]
 
     labels = results[0]
     bboxes = results[1]

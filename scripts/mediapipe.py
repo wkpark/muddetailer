@@ -144,7 +144,7 @@ def mediapipe_detector_facemesh(image,
 
             # get bbox
             bb = cv2.boundingRect(hull)
-            x0, y0, x1, y1 = int(bb[0]), int(bb[1]), int(bb[2]), int(bb[3])
+            x0, y0, x1, y1 = int(bb[0]), int(bb[1]), int(bb[0]+bb[2]), int(bb[1]+bb[3])
 
             bbox = np.array([x0, y0, x1, y1], dtype=np.float32)
             bboxes.append(bbox)
