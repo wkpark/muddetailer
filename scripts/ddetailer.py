@@ -529,27 +529,34 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 with gr.Accordion("Inpainting Helper", open=False):
                     gr.HTML(value="<p>If you already have images in the gallery, you can click one of them to select and click the Inpaint button.</p>")
+                    tabname = "txt2img" if not is_img2img else "img2img"
                     with gr.Column(variant="compact"):
                         with gr.Row():
                             if not is_img2img:
-                                dd_image = gr.Image(label='Image', type="pil")
+                                dd_image = gr.Image(label='Image', type="pil", elem_id="mudd_inpainting_image")
 
-                        with gr.Group(visible=False) as select_group_a:
-                            with gr.Row(scale=4):
-                                labels_a = gr.Dropdown(label="Detected masks (A)", choices=[], values=[], multiselect=True, interactive=True, scale=3)
-                                select_options_a = gr.CheckboxGroup(choices=["sync"], value=["sync"], label="options", show_label=False, interactive=True, scale=1)
-                                masks_a = gr.Textbox(label="Detected masks (A)", value="", visible=False)
+                        with gr.Group(visible=True) as select_group_a:
+                            with gr.Row():
+                                labels_a = gr.Dropdown(label="Detected masks (A)", choices=[], values=[], multiselect=True, interactive=True)
+                            with gr.Row():
+                                select_options_a = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
+                                masks_a = gr.Textbox(label="Detected masks (A)", value="", visible=False, elem_id="mudd_masks_a_" + tabname)
                         with gr.Group(visible=False) as select_group_b:
-                            with gr.Row(scale=4):
-                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True, scale=3)
-                                select_options_b = gr.CheckboxGroup(choices=["sync"], value=["sync"], label="options", show_label=False, interactive=True, scale=1)
-                                masks_b = gr.Textbox(label="Detected masks (B)", value="", visible=False)
+                            with gr.Row():
+                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True)
+                            with gr.Row():
+                                select_options_b = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
+                                masks_b = gr.Textbox(label="Detected masks (B)", value="", visible=False, elem_id="mudd_masks_b_" + tabname)
 
                         with gr.Row():
                             if not is_img2img:
                                 dd_import_prompt = gr.Button(value='Import prompt', interactive=False, variant="secondary")
                             dd_run_inpaint = gr.Button(value='Inpaint', interactive=True, variant="primary")
                         generation_info = gr.Textbox(visible=False, elem_id="muddetailer_image_generation_info")
+                        dummy_label_a = gr.Textbox(value="A", visible=False)
+                        dummy_label_b = gr.Textbox(value="B", visible=False)
+                        dummy_true =  gr.Checkbox(value=True, visible=False)
+                        dummy_false =  gr.Checkbox(value=False, visible=False)
 
                     if not is_img2img:
                         register_paste_params_button(ParamBinding(
@@ -576,9 +583,22 @@ class MuDetectionDetailerScript(scripts.Script):
                         )
 
                     # setup labels_a, labels_b events
-                    def select_masks(select, selected, options, label="A"):
+                    def select_masks(select, selected, options, label="A", is_img2img=False):
                         select = ",".join(select)
-                        if "sync" in options:
+                        sync = False
+                        detectonly = False
+                        if type(options) is list:
+                            if "sync" in options:
+                                sync = True
+                            if "detect only" in options:
+                                detectonly = True
+                        else:
+                            sync = options
+
+                        if detectonly:
+                            return "0"
+
+                        if sync:
                             selected = select
                         else:
                             selected += "," + select
@@ -589,22 +609,28 @@ class MuDetectionDetailerScript(scripts.Script):
                         return selected
 
                     labels_args = dict(
-                        fn=lambda a,b,c: select_masks(a, b, c, label="A"),
-                        inputs=[labels_a, dd_select_masks_a, select_options_a],
+                        _js="overlay_masks",
+                        fn=select_masks,
+                        inputs=[labels_a, dd_select_masks_a, select_options_a, dummy_label_a, dummy_true if is_img2img else dummy_false],
                         outputs=[dd_select_masks_a],
                         show_progress=False,
                     )
                     labels_a.select(**labels_args)
                     labels_a.input(**labels_args)
+                    labels_args.pop("_js")
+                    select_options_a.change(**labels_args)
 
                     labels_args = dict(
-                        fn=lambda a,b: select_masks(a, b, c, label="B"),
-                        inputs=[labels_b, dd_select_masks_b, select_options_b],
-                        outputs=[dd_select_masks_a],
+                        _js="overlay_masks",
+                        fn=select_masks,
+                        inputs=[labels_b, dd_select_masks_b, select_options_b, dummy_label_b, dummy_true if is_img2img else dummy_false],
+                        outputs=[dd_select_masks_b],
                         show_progress=False,
                     )
                     labels_b.select(**labels_args)
                     labels_b.input(**labels_args)
+                    labels_args.pop("_js")
+                    select_options_b.change(**labels_args)
 
                     dummy_component = gr.Label(visible=False)
 
@@ -914,6 +940,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 scores = [score.tolist() for score in scores]
                 masks_a["scores"] = scores
                 masks_a["bboxes"] = bboxes
+                masks_a["segms"] = masks_a["segms"]
                 labs_a = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_a["labels"])]
 
             masks_b = processed.masks_b
@@ -926,15 +953,16 @@ class MuDetectionDetailerScript(scripts.Script):
                 scores = [score.tolist() for score in scores]
                 masks_b["scores"] = scores
                 masks_b["bboxes"] = bboxes
+                masks_b["segms"] = masks_b["segms"]
                 labs_b = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_b["labels"])]
 
             return (image if input is None else gr.update(), gal, geninfo,
-                gr.update(visible=True if len(labs_a) > 1 else False),
-                gr.update(visible=True if len(labs_b) > 1 else False),
+                gr.update(visible=True if len(labs_a) > 0 else False),
+                gr.update(visible=True if len(labs_b) > 0 else False),
                 json.dumps([masks_a]),
                 json.dumps([masks_b]),
-                gr.update(choices=labs_a, visible=True if len(labs_a) > 1 else False),
-                gr.update(choices=labs_b, visible=True if len(labs_b) > 1 else False),
+                gr.update(choices=labs_a, visible=True if len(labs_a) > 0 else False),
+                gr.update(choices=labs_b, visible=True if len(labs_b) > 0 else False),
                 plaintext_to_html(info))
 
         def import_image_from_gallery(gallery, idx):
@@ -1151,8 +1179,9 @@ class MuDetectionDetailerScript(scripts.Script):
         #dd_select_masks_a = ",".join(zip_ranges(select_masks_a))
         #dd_select_masks_b = ",".join(zip_ranges(select_masks_b))
 
-        select_masks_a = [x-1 for x in select_masks_a if x - 1 >= 0]
-        select_masks_b = [x-1 for x in select_masks_b if x - 1 >= 0]
+        # 0 could be acceptable.
+        select_masks_a = [x-1 for x in select_masks_a if x >= 0]
+        select_masks_b = [x-1 for x in select_masks_b if x >= 0]
         select_masks_a = None if len(select_masks_a) == 0 else select_masks_a
         select_masks_b = None if len(select_masks_b) == 0 else select_masks_b
 
@@ -1250,7 +1279,9 @@ class MuDetectionDetailerScript(scripts.Script):
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
 
-                detected_a = {"bboxes": results_b_pre[1], "labels": results_b_pre[0], "scores": results_b_pre[3]}
+                detected_b = {"bboxes": results_b_pre[1], "labels": results_b_pre[0], "scores": results_b_pre[3]}
+                polylines = create_polyline_from_segms(results_b_pre[2])
+                detected_b["segms"] = polylines
 
                 print(f"Total {len(results_b_pre[1])} are detected, using model {label_b_pre}...")
 
@@ -1266,7 +1297,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     gen_count = len(masks_b_pre)
 
                     if select_masks_b:
-                        gen_selected = [i for i in select_masks_b if i < len(masks_b_pre)]
+                        gen_selected = [i for i in select_masks_b if i < len(masks_b_pre) and i >= 0]
                     else:
                         gen_selected = range(len(masks_b_pre))
                     state.job_count += len(gen_selected)
@@ -1299,6 +1330,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     if (len(gen_selected) > 0):
                         output_images[n] = processed.images[0]
                         init_image = processed.images[0]
+                    elif gen_count > 0:
+                        output_images[n] = segmask_preview_b
 
                 else:
                     print(f"No model B detections for output generation {p_txt._idx + 1} with current settings.")
@@ -1311,6 +1344,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 results_a = sort_results(results_a, dd_detect_order_a)
                 detected_a = {"bboxes": results_a[1], "labels": results_a[0], "scores": results_a[3]}
+                polylines = create_polyline_from_segms(results_a[2])
+                detected_a["segms"] = polylines
 
                 print(f"Total {len(results_a[1])} are detected, using model {label_a}...")
 
@@ -1322,6 +1357,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
                     results_b = sort_results(results_b, dd_detect_order_b)
                     detected_b = {"bboxes": results_b[1], "labels": results_b[0], "scores": results_b[3]}
+                    polylines = create_polyline_from_segms(results_b[2])
+                    detected_b["segms"] = polylines
 
                     print(f"Total {len(results_b[1])} are detected, using model {label_b}...")
 
@@ -1353,8 +1390,8 @@ class MuDetectionDetailerScript(scripts.Script):
                         images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
                     gen_count = len(masks_a)
 
-                    if select_masks_b:
-                        gen_selected = [i for i in select_masks_b if i < len(masks_a)]
+                    if select_masks_a:
+                        gen_selected = [i for i in select_masks_a if i < len(masks_a) and i >= 0]
                     else:
                         gen_selected = range(len(masks_a))
 
@@ -1381,6 +1418,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     
                     if len(gen_selected) > 0 and len(processed.images) > 0:
                         output_images[n] = processed.images[0]
+                    elif gen_count > 0:
+                        output_images[n] = segmask_preview_a
   
                 else: 
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
@@ -1857,6 +1896,19 @@ def create_segmasks(results):
         segmasks.append(mask)
 
     return segmasks
+
+
+def create_polyline_from_segms(segms):
+    polys = []
+    for i in range(len(segms)):
+        mask = segms[i].astype(np.uint8) * 255
+        #contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        polygons = [np.array(polygon).squeeze().tolist() for polygon in contours]
+        #polygons = [np.array(polygon).squeeze() for polygon in contours]
+        polys.append(polygons)
+    return polys
+
 
 import mmcv
 
