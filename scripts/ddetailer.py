@@ -1260,6 +1260,9 @@ class MuDetectionDetailerScript(scripts.Script):
 
         processed = Processed(p, [])
 
+        # init random
+        np.random.seed(1337)
+
         detected_a = {}
         detected_b = {}
         output_images = []
