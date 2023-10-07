@@ -408,16 +408,19 @@ class MuDetectionDetailerScript(scripts.Script):
                                 )
                         with gr.Group(visible=False) as model_a_options:
                             with gr.Row():
-                                dd_conf_a = gr.Slider(label='Confidence threshold % (A)', minimum=0, maximum=100, step=1, value=30, min_width=80)
-                                dd_dilation_factor_a = gr.Slider(label='Dilation factor (A)', minimum=0, maximum=255, step=1, value=4, min_width=80)
+                                with gr.Column():
+                                    with gr.Row():
+                                        dd_conf_a = gr.Slider(label='Confidence %', minimum=0, maximum=100, step=1, value=30, min_width=140)
+                                        dd_dilation_factor_a = gr.Slider(label='Dilation', minimum=0, maximum=255, step=1, value=4, min_width=140)
+                                with gr.Column():
+                                    with gr.Row():
+                                        dd_offset_x_a = gr.Slider(label='X offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
+                                        dd_offset_y_a = gr.Slider(label='Y offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                             with gr.Row():
-                                dd_offset_x_a = gr.Slider(label='X offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
-                                dd_offset_y_a = gr.Slider(label='Y offset (A)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
+                                dd_max_per_img_a = gr.Slider(label='Max detection (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
+                                dd_detect_order_a = gr.CheckboxGroup(label="Detect order", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
-                                dd_max_per_img_a = gr.Slider(label='Max detection (A) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
-                                dd_detect_order_a = gr.CheckboxGroup(label="Detect order (A)", choices=["area", "position"], interactive=True, value=[], min_width=80)
-                            with gr.Row():
-                                dd_select_masks_a = gr.Textbox(label='Select masks to process (A)', value='', placeholder='input mask numbers to process e.g) 1,2,5..', interactive=True)
+                                dd_select_masks_a = gr.Textbox(label='Select detection to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -454,17 +457,19 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Group(visible=False) as model_b_options:
                             with gr.Row():
-                                dd_conf_b = gr.Slider(label='Confidence threshold % (B)', minimum=0, maximum=100, step=1, value=30, min_width=80)
-                                dd_dilation_factor_b = gr.Slider(label='Dilation factor (B)', minimum=0, maximum=255, step=1, value=4, min_width=80)
-
+                                with gr.Column():
+                                    with gr.Row():
+                                        dd_conf_b = gr.Slider(label='Confidence % (B)', minimum=0, maximum=100, step=1, value=30, min_width=140)
+                                        dd_dilation_factor_b = gr.Slider(label='Dilation (B)', minimum=0, maximum=255, step=1, value=4, min_width=140)
+                                with gr.Column():
+                                    with gr.Row():
+                                        dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
+                                        dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                             with gr.Row():
-                                dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
-                                dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=80)
+                                dd_max_per_img_b = gr.Slider(label='Max detection (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
+                                dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
-                                dd_max_per_img_b = gr.Slider(label='Max detection (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=80)
-                                dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=80)
-                            with gr.Row():
-                                dd_select_masks_b = gr.Textbox(label='Select masks to process (B)', value='', placeholder='input mask numbers to process e.g) 1,2,5..', interactive=True)
+                                dd_select_masks_b = gr.Textbox(label='Select detection to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
                     dd_model_b.change(
                         fn=self.show_classes,
                         inputs=[dd_model_b, dd_classes_b],
@@ -486,28 +491,32 @@ class MuDetectionDetailerScript(scripts.Script):
                             dd_preprocess_b = gr.Checkbox(label='Inpaint B detections before inpainting A')
 
                     with gr.Group(visible=False) as operation:
-                        gr.HTML(value="<p>Mask operation:</p>")
                         with gr.Row():
-                            dd_bitwise_op = gr.Radio(label='Bitwise operation', choices=['None', 'A&B', 'A-B'], value="None")
+                            dd_bitwise_op = gr.Radio(label='Bitwise Mask operation', info="Mask operation A and B", choices=['None', 'A&B', 'A-B'], value="None")
 
                 with gr.Accordion("Advanced options", open=False) as advanced:
                     gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
-                    with gr.Column():
-                        with gr.Row():
-                            dd_noise_multiplier = gr.Slider(label='Use noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0)
-                            dd_cfg_scale = gr.Slider(label='Use CFG Scale', minimum=0, maximum=30, step=0.5, value=0)
-                        with gr.Row():
-                            dd_sampler = gr.Dropdown(label='Use Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler")
-                            dd_steps = gr.Slider(label='Use sampling steps', minimum=0, maximum=120, step=1, value=0)
-                    with gr.Column():
-                        with gr.Row():
-                            dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint")
-                            create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
+                    with gr.Row():
+                        with gr.Column():
+                            with gr.Row():
+                                dd_sampler = gr.Dropdown(label='Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler", min_width=140)
+                                dd_steps = gr.Slider(label='Sampling steps', minimum=0, maximum=120, step=1, value=0, min_width=140)
+                        with gr.Column():
+                            with gr.Row():
+                                dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=140)
+                                dd_cfg_scale = gr.Slider(label='CFG Scale', minimum=0, maximum=30, step=0.5, value=0, min_width=140)
+                    with gr.Row():
+                        with gr.Column():
+                            with gr.Row():
+                                dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint", min_width=105)
+                                create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
 
-                            dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae")
-                            create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
+                                dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae", min_width=105)
+                                create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
-                        dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0)
+                        with gr.Column():
+                            with gr.Row():
+                                dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
                     with gr.Column():
                         with gr.Row():
                             advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
@@ -537,10 +546,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Group(visible=True) as select_group_a:
                             with gr.Row():
-                                labels_a = gr.Dropdown(label="Detected masks (A)", choices=[], values=[], multiselect=True, interactive=True)
+                                labels_a = gr.Dropdown(label="Detected masks", choices=[], values=[], multiselect=True, interactive=True)
                             with gr.Row():
                                 select_options_a = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
-                                masks_a = gr.Textbox(label="Detected masks (A)", value="", visible=False, elem_id="mudd_masks_a_" + tabname)
+                                masks_a = gr.Textbox(label="Detected masks", value="", visible=False, elem_id="mudd_masks_a_" + tabname)
                         with gr.Group(visible=False) as select_group_b:
                             with gr.Row():
                                 labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True)
