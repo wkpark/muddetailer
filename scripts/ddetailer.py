@@ -1125,6 +1125,39 @@ class MuDetectionDetailerScript(scripts.Script):
         if getattr(p, "_disable_muddetailer", False):
             return
 
+        self._image_masks = []
+
+
+    def postprocess(self, p, processed, *args):
+        if getattr(p, "_disable_muddetailer", False):
+            return
+
+        if len(self._image_masks) == 0:
+            return
+
+        final_count = len(processed.images)
+        grid_image = None
+        if (opts.return_grid or opts.grid_save) and not p.do_not_save_grid and (p.n_iter > 1 or p.batch_size > 1) and final_count > 1:
+            # recheck size of the grid image
+            if processed.images[0].size[0] > processed.images[1].size[0]:
+                # grid image always bigger then other images
+                grid_image = processed.images[0]
+                processed.images = processed.images[1:]
+                grid_texts = processed.infotexts[0]
+                processed.infotexts = processed.infotexts[1:]
+
+        # insert any masks into results if available
+        images = [[*masks, image] for masks, image in zip(self._image_masks, processed.images)]
+        processed.images = [image for sub in images for image in sub]
+        # copy infotext to mask images
+        infos = [[info] * (len(masks) + 1) for masks, info in zip(self._image_masks, processed.infotexts)]
+        processed.infotexts = [info for sub in infos for info in sub]
+
+        if grid_image is not None:
+            processed.images = [grid_image] + processed.images
+            processed.infotexts = [grid_texts] + processed.infotexts
+
+
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
@@ -1276,6 +1309,9 @@ class MuDetectionDetailerScript(scripts.Script):
         detected_a = {}
         detected_b = {}
         output_images = []
+        segmask_preview_a = None
+        segmask_preview_b = None
+        save_jobcount = state.job_count
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -1343,8 +1379,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     if (len(gen_selected) > 0):
                         output_images[n] = processed.images[0]
                         init_image = processed.images[0]
-                    elif gen_count > 0:
-                        output_images[n] = segmask_preview_b
 
                 else:
                     print(f"No model B detections for output generation {p_txt._idx + 1} with current settings.")
@@ -1431,19 +1465,26 @@ class MuDetectionDetailerScript(scripts.Script):
                     
                     if len(gen_selected) > 0 and len(processed.images) > 0:
                         output_images[n] = processed.images[0]
-                    elif gen_count > 0:
-                        output_images[n] = segmask_preview_a
   
                 else: 
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
 
+        # append masks if needed case
+        self._image_masks.append([])
         if len(output_images) > 0:
             pp.image = output_images[0]
             pp.image.info["parameters"] = info
 
             if p.extra_generation_params.get("Noise multiplier") is not None:
                 p.extra_generation_params.pop("Noise multiplier")
+        if state.job_count == save_jobcount:
+            if segmask_preview_a is not None:
+                segmask_preview_a.info["parameters"] = info
+                self._image_masks[-1].append(segmask_preview_a)
+            if segmask_preview_b is not None:
+                segmask_preview_b.info["parameters"] = info
+                self._image_masks[-1].append(segmask_preview_b)
 
         processed.masks_a = detected_a
         processed.masks_b = detected_b
