@@ -33,7 +33,7 @@ scriptdir = scripts.basedir()
 
 models_list = {}
 models_alias = {}
-def list_models(model_path):
+def list_models(model_path, real=True):
         model_list = modelloader.load_models(model_path=model_path, ext_filter=[".pth"])
         
         def modeltitle(path, shorthash):
@@ -72,6 +72,9 @@ def list_models(model_path):
             models.append(title)
             models_alias[title] = filename
 
+        if real is False:
+            models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
+            models = sorted(models)
         return models
 
 def startup():
@@ -373,8 +376,7 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Row():
                 enabled = gr.Checkbox(label="Enable", value=False, visible=True)
 
-            model_list = list_models(dd_models_path)
-            mp_models = ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
+            model_list = list_models(dd_models_path, False)
             if is_img2img:
                 info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
             else:
@@ -382,8 +384,8 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Group(), gr.Tabs():
                 with gr.Tab("Primary"):
                     with gr.Row():
-                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + mp_models + model_list, value=model_list[0], visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + mp_models + list_models(dd_models_path)},"mudd_refresh_model_a")
+                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path, False)},"mudd_refresh_model_a")
                         dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
@@ -431,7 +433,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 with gr.Tab("Secondary"):
                     with gr.Row():
                         dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=False, type="value")
-                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path)},"mudd_refresh_model_b")
+                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path, False)},"mudd_refresh_model_b")
                         dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
