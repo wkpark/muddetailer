@@ -419,10 +419,10 @@ class MuDetectionDetailerScript(scripts.Script):
                                         dd_offset_x_a = gr.Slider(label='X offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                                         dd_offset_y_a = gr.Slider(label='Y offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                             with gr.Row():
-                                dd_max_per_img_a = gr.Slider(label='Max detection (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
+                                dd_max_per_img_a = gr.Slider(label='Max detections (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
                                 dd_detect_order_a = gr.CheckboxGroup(label="Detect order", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
-                                dd_select_masks_a = gr.Textbox(label='Select detection to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
+                                dd_select_masks_a = gr.Textbox(label='Select detections to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -468,10 +468,10 @@ class MuDetectionDetailerScript(scripts.Script):
                                         dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                                         dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                             with gr.Row():
-                                dd_max_per_img_b = gr.Slider(label='Max detection (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
+                                dd_max_per_img_b = gr.Slider(label='Max detections (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
                                 dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
-                                dd_select_masks_b = gr.Textbox(label='Select detection to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
+                                dd_select_masks_b = gr.Textbox(label='Select detections to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
                     dd_model_b.change(
                         fn=self.show_classes,
                         inputs=[dd_model_b, dd_classes_b],
