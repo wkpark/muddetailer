@@ -478,14 +478,15 @@ class MuDetectionDetailerScript(scripts.Script):
 
             with gr.Group(visible=False) as options:
                 with gr.Accordion("Inpainting options"):
-                    with gr.Row():
-                        dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4)
-                        dd_denoising_strength = gr.Slider(label='Denoising strength', minimum=0.0, maximum=1.0, step=0.01, value=0.4)
-
-                    sampler_names = [sampler.name for sampler in sd_samplers.all_samplers]
                     with gr.Column(variant="compact"):
-                        dd_inpaint_full_res = gr.Checkbox(label='Inpaint mask only', value=True)
-                        dd_inpaint_full_res_padding = gr.Slider(label='Inpaint only masked padding, pixels', minimum=0, maximum=256, step=4, value=32)
+                        with gr.Row():
+                            dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4, min_width=200)
+                            dd_denoising_strength = gr.Slider(label='Denoising strength', minimum=0.0, maximum=1.0, step=0.01, value=0.4, min_width=200)
+
+                        sampler_names = [sampler.name for sampler in sd_samplers.all_samplers]
+                    with gr.Column(variant="compact"):
+                        dd_inpaint_full_res = gr.Checkbox(label='Inpaint mask only', value=True, min_width=140)
+                        dd_inpaint_full_res_padding = gr.Slider(label='Inpaint only masked padding, pixels', minimum=0, maximum=256, step=4, value=32, min_width=140)
                     with gr.Group(visible=False) as model_b_options_2:
                         with gr.Row():
                             dd_preprocess_b = gr.Checkbox(label='Inpaint B detections before inpainting A')
@@ -497,26 +498,24 @@ class MuDetectionDetailerScript(scripts.Script):
                 with gr.Accordion("Advanced options", open=False) as advanced:
                     gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
                     with gr.Row():
-                        with gr.Column():
+                        with gr.Column(variant="compact"):
                             with gr.Row():
-                                dd_sampler = gr.Dropdown(label='Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler", min_width=140)
-                                dd_steps = gr.Slider(label='Sampling steps', minimum=0, maximum=120, step=1, value=0, min_width=140)
-                        with gr.Column():
+                                dd_sampler = gr.Dropdown(label='Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler", min_width=200)
+                                dd_steps = gr.Slider(label='Sampling steps', minimum=0, maximum=120, step=1, value=0, min_width=200)
+                        with gr.Column(variant="compact"):
                             with gr.Row():
-                                dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=140)
-                                dd_cfg_scale = gr.Slider(label='CFG Scale', minimum=0, maximum=30, step=0.5, value=0, min_width=140)
-                    with gr.Row():
-                        with gr.Column():
-                            with gr.Row():
-                                dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint", min_width=105)
-                                create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
+                                dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=200)
+                                dd_cfg_scale = gr.Slider(label='CFG Scale', minimum=0, maximum=30, step=0.5, value=0, min_width=200)
+                    with gr.Column(variant="compact"):
+                        with gr.Row():
+                            dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint", min_width=155)
+                            create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
 
-                                dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae", min_width=105)
-                                create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
+                            dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae", min_width=155)
+                            create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
-                        with gr.Column():
-                            with gr.Row():
-                                dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
+                    with gr.Column(variant="compact"):
+                        dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
                     with gr.Column():
                         with gr.Row():
                             advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
