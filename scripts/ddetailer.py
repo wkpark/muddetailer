@@ -1301,8 +1301,6 @@ class MuDetectionDetailerScript(scripts.Script):
         if p_txt._inpainting:
             shared.total_tqdm.updateTotal(0)
 
-        processed = Processed(p, [])
-
         # init random
         np.random.seed(1337)
 
@@ -1312,11 +1310,21 @@ class MuDetectionDetailerScript(scripts.Script):
         segmask_preview_a = None
         segmask_preview_b = None
         save_jobcount = state.job_count
+
+        info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
+        processed = Processed(
+            p_txt,
+            images_list=output_images,
+            seed=p_txt.all_seeds[0],
+            info=info,
+            subseed=p_txt.all_subseeds[0],
+            infotexts=[info],
+        )
+
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
             init_image = copy(pp.image)
-            info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
 
             output_images.append(init_image)
             masks_a = []
