@@ -1774,7 +1774,7 @@ def modelpath(model_shortname):
         for model in model_list:
             if model_shortname in model:
                 tmp = model.split(" ")[0]
-                if model_shortname == tmp.split("\\")[-1]:
+                if model_shortname == tmp.split("/")[-1]:
                     model_shortname = model
                     break
 
