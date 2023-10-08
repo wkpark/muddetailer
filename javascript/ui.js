@@ -228,7 +228,11 @@ function make_mask(masks, selected, is_img2img) {
                 continue;
             }
 
-            ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',0.3)';
+            if (segms) {
+                ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',0.3)';
+            } else {
+                ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',0.6)';
+            }
             var label = labels[i];
             var score = scores[i];
             if (score > 0) {
@@ -240,24 +244,26 @@ function make_mask(masks, selected, is_img2img) {
             ctx.fillRect(bbox[0], bbox[1], bbox[2]-bbox[0], bbox[3]-bbox[1]);
 
             ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',0.6)';
-            var poly = segms[i];
-            for (var k = 0; k < poly.length; k++) {
-                var seg = poly[k];
-                if (typeof seg[0] == 'number') {
-                    // 1-dim array to 2dim array: x,y,x1,y1,x2,y2 -> [x,y], [x1,y1], [x2,y2], ...
-                    var tmp = [];
-                    while(seg.length)
-                        tmp.push(seg.splice(0,2));
-                    seg = tmp;
-                }
+            if (segms) {
+                var poly = segms[i];
+                for (var k = 0; k < poly.length; k++) {
+                    var seg = poly[k];
+                    if (typeof seg[0] == 'number') {
+                        // 1-dim array to 2dim array: x,y,x1,y1,x2,y2 -> [x,y], [x1,y1], [x2,y2], ...
+                        var tmp = [];
+                        while(seg.length)
+                            tmp.push(seg.splice(0,2));
+                        seg = tmp;
+                    }
 
-                ctx.beginPath();
-                ctx.moveTo(seg[0][0], seg[0][1]);
-                for (var j = 1; j < seg.length; j++) {
-                    ctx.lineTo(seg[j][0], seg[j][1]);
+                    ctx.beginPath();
+                    ctx.moveTo(seg[0][0], seg[0][1]);
+                    for (var j = 1; j < seg.length; j++) {
+                        ctx.lineTo(seg[j][0], seg[j][1]);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
                 }
-                ctx.closePath();
-                ctx.fill();
             }
 
             ctx.fillStyle = "#ffffff";

@@ -576,20 +576,25 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     def get_pnginfo(image):
                         if image is None:
-                            return '', gr.update(interactive=False, variant="secondary")
+                            return '', gr.update(interactive=False, variant="secondary"), gr.update(), gr.update()
 
                         geninfo, _ = images.read_info_from_image(image)
                         if geninfo is None or geninfo.strip() == "":
-                            return '', gr.update(interactive=False, variant="secondary")
+                            return '', gr.update(interactive=False, variant="secondary"), gr.update(), gr.update()
 
-                        return geninfo, gr.update(interactive=True, variant="primary")
+                        params = parse_prompt(geninfo)
+                        # auto update masks info.
+                        masks_a_json = params.get("MuDDetailer detection a", gr.update())
+                        masks_b_json = params.get("MuDDetailer detection a", gr.update())
+
+                        return geninfo, gr.update(interactive=True, variant="primary"), masks_a_json, masks_b_json
 
 
                     if not is_img2img:
                         dd_image.change(
                             fn=get_pnginfo,
                             inputs=[dd_image],
-                            outputs=[generation_info, dd_import_prompt],
+                            outputs=[generation_info, dd_import_prompt, masks_a, masks_b],
                         )
 
                     # setup labels_a, labels_b events
