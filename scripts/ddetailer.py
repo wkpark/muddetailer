@@ -618,6 +618,41 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         return selected
 
+
+                    def update_labels(masks):
+                        """show selectable mask labels in the labels dropdown components"""
+                        if masks:
+                            try:
+                                loaded = json.loads(masks)
+                            except Exception as e:
+                                return gr.update()
+                        else:
+                            return gr.update()
+
+                        bboxes = loaded.get("bboxes", None)
+                        if bboxes is not None:
+                            scores = loaded["scores"]
+                            labs = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(loaded["labels"])]
+
+                            return gr.update(choices=labs, value=[])
+
+                        return gr.update()
+
+
+                    masks_a.change(
+                        fn=update_labels,
+                        inputs=[masks_a],
+                        outputs=[labels_a],
+                        show_progress=False,
+                    )
+
+                    masks_b.change(
+                        fn=update_labels,
+                        inputs=[masks_b],
+                        outputs=[labels_b],
+                        show_progress=False,
+                    )
+
                     labels_args = dict(
                         _js="overlay_masks",
                         fn=select_masks,
@@ -690,6 +725,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_sampler, "MuDDetailer sampler"),
                 (dd_checkpoint, "MuDDetailer checkpoint"),
                 (dd_vae, "MuDDetailer VAE"),
+                (masks_a, "MuDDetailer detection a"),
+                (masks_b, "MuDDetailer detection b"),
             )
 
             dd_model_b.change(
@@ -945,32 +982,20 @@ class MuDetectionDetailerScript(scripts.Script):
             bboxes = masks_a.get("bboxes", None)
             if bboxes is not None:
                 scores = masks_a["scores"]
-                # convert ndarray to list
-                bboxes = [bbox.tolist() for bbox in bboxes]
-                scores = [score.tolist() for score in scores]
-                masks_a["scores"] = scores
-                masks_a["bboxes"] = bboxes
-                masks_a["segms"] = masks_a["segms"]
                 labs_a = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_a["labels"])]
 
             masks_b = processed.masks_b
             labs_b = []
             bboxes = masks_b.get("bboxes", None)
             if bboxes is not None:
-                bboxes = masks_b["bboxes"]
                 scores = masks_b["scores"]
-                bboxes = [bbox.tolist() for bbox in bboxes]
-                scores = [score.tolist() for score in scores]
-                masks_b["scores"] = scores
-                masks_b["bboxes"] = bboxes
-                masks_b["segms"] = masks_b["segms"]
                 labs_b = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_b["labels"])]
 
             return (image if input is None else gr.update(), gal, geninfo,
                 gr.update(visible=True if len(labs_a) > 0 else False),
                 gr.update(visible=True if len(labs_b) > 0 else False),
-                json.dumps([masks_a]),
-                json.dumps([masks_b]),
+                json.dumps(masks_a, separators=(",", ":")),
+                json.dumps(masks_b, separators=(",", ":")),
                 gr.update(choices=labs_a, visible=True if len(labs_a) > 0 else False),
                 gr.update(choices=labs_b, visible=True if len(labs_b) > 0 else False),
                 plaintext_to_html(info))
@@ -1321,6 +1346,11 @@ class MuDetectionDetailerScript(scripts.Script):
             infotexts=[info],
         )
 
+        # prepare gray_image
+        npimg = np.array(pp.image)
+        npimg = npimg[:, :, ::-1].copy()
+        gray_image = cv2.cvtColor(npimg, cv2.COLOR_BGR2GRAY)
+
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -1336,13 +1366,16 @@ class MuDetectionDetailerScript(scripts.Script):
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
 
-                detected_b = {"bboxes": results_b_pre[1], "labels": results_b_pre[0], "scores": results_b_pre[3]}
-                polylines = create_polyline_from_segms(results_b_pre[2])
-                detected_b["segms"] = polylines
+                bboxes = [bbox.astype(np.intp).tolist() for bbox in results_b_pre[1]]
+                scores = [score.item() for score in results_b_pre[3]]
+                detected_b = {"bboxes": bboxes, "labels": results_b_pre[0], "scores": scores}
+                if len(results_b_pre[2]) > 0:
+                    polylines = create_polyline_from_segms(results_b_pre[2])
+                    detected_b["segms"] = polylines
 
                 print(f"Total {len(results_b_pre[1])} are detected, using model {label_b_pre}...")
 
-                masks_b_pre = create_segmasks(results_b_pre)
+                masks_b_pre = create_segmasks(gray_image, results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
                 masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
                 if (len(masks_b_pre) > 0):
@@ -1398,26 +1431,32 @@ class MuDetectionDetailerScript(scripts.Script):
                     label_a = dd_bitwise_op
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 results_a = sort_results(results_a, dd_detect_order_a)
-                detected_a = {"bboxes": results_a[1], "labels": results_a[0], "scores": results_a[3]}
-                polylines = create_polyline_from_segms(results_a[2])
-                detected_a["segms"] = polylines
+                bboxes = [bbox.astype(np.intp).tolist() for bbox in results_a[1]]
+                scores = [round(score.item(), 4) for score in results_a[3]]
+                detected_a = {"bboxes": bboxes, "labels": results_a[0], "scores": scores}
+                if len(results_a[2]) > 0:
+                    polylines = create_polyline_from_segms(results_a[2])
+                    detected_a["segms"] = polylines
 
                 print(f"Total {len(results_a[1])} are detected, using model {label_a}...")
 
-                masks_a = create_segmasks(results_a)
+                masks_a = create_segmasks(gray_image, results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
                 if (dd_model_b != "None" and dd_bitwise_op != "None"):
                     label_b = "B"
                     results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
                     results_b = sort_results(results_b, dd_detect_order_b)
-                    detected_b = {"bboxes": results_b[1], "labels": results_b[0], "scores": results_b[3]}
-                    polylines = create_polyline_from_segms(results_b[2])
-                    detected_b["segms"] = polylines
+                    bboxes = [bbox.astype(np.intp).tolist() for bbox in results_b[1]]
+                    scores = [round(score.item(), 4) for score in results_b[3]]
+                    detected_b = {"bboxes": bboxes, "labels": results_b[0], "scores": scores}
+                    if len(results_b[2]) > 0:
+                        polylines = create_polyline_from_segms(results_b[2])
+                        detected_b["segms"] = polylines
 
                     print(f"Total {len(results_b[1])} are detected, using model {label_b}...")
 
-                    masks_b = create_segmasks(results_b)
+                    masks_b = create_segmasks(gray_image, results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
                     masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
                     if (len(masks_b) > 0):
@@ -1478,7 +1517,22 @@ class MuDetectionDetailerScript(scripts.Script):
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
 
+        masks_params = {}
+        if len(detected_a) > 0:
+            masks_params["MuDDetailer detection a"] = json.dumps(detected_a, separators=(",", ":"))
+        if len(detected_b) > 0:
+            masks_params["MuDDetailer detection b"] = json.dumps(detected_b, separators=(",", ":"))
+
+        if len(masks_params) > 0:
+            p.extra_generation_params.update(masks_params)
+            info = processing.create_infotext(p, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
+
+        processed.masks_a = detected_a
+        processed.masks_b = detected_b
         # append masks if needed case
+        if getattr(self, "_image_masks", None) is None:
+            return processed
+
         self._image_masks.append([])
         if len(output_images) > 0:
             pp.image = output_images[0]
@@ -1494,8 +1548,6 @@ class MuDetectionDetailerScript(scripts.Script):
                 segmask_preview_b.info["parameters"] = info
                 self._image_masks[-1].append(segmask_preview_b)
 
-        processed.masks_a = detected_a
-        processed.masks_b = detected_b
         return processed
 
     def postprocess_image(self, p, pp, *_args):
@@ -1817,15 +1869,17 @@ def sort_results(results, orders):
     # sort all results
     results[1] = [bboxes[i] for i in order]
     results[0] = [results[0][i] for i in order]
-    results[2] = [results[2][i] for i in order]
+    if len(results[2]) > 0:
+        results[2] = [results[2][i] for i in order]
     results[3] = [results[3][i] for i in order]
     return results
 
 
 def update_result_masks(results, masks):
+    boolmasks = []
     for i in range(len(masks)):
-        boolmask = np.array(masks[i], dtype=bool)
-        results[2][i] = boolmask
+        boolmasks.append(np.array(masks[i], dtype=bool))
+    results[2] = boolmasks
     return results
 
 def create_segmask_preview(results, image, selected=None):
@@ -1840,10 +1894,16 @@ def create_segmask_preview(results, image, selected=None):
 
     cv2_image = np.array(image)
     cv2_image = cv2_image[:, :, ::-1].copy()
+    gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
+
+    # no segms? simply generate from bboxes
+    if len(segms) == 0:
+        segms = _create_segms(gray, bboxes)
 
     if selected is None:
         selected = []
-    for i in range(len(segms)):
+
+    for i in range(len(bboxes)):
         color = np.full_like(cv2_image, np.random.randint(100, 256, (1, 3), dtype=np.uint8))
         alpha = 0.2
         if i in selected:
@@ -1854,8 +1914,9 @@ def create_segmask_preview(results, image, selected=None):
             alpha = 0.3
         color_image = cv2.addWeighted(cv2_image, alpha, color, 1-alpha, 0)
         cv2_mask = segms[i].astype(np.uint8) * 255
-        cv2_mask_bool = np.array(segms[i], dtype=bool)
-        centroid = np.mean(np.argwhere(cv2_mask_bool),axis=0)
+        #cv2_mask_bool = np.array(segms[i], dtype=bool)
+        #centroid = np.mean(np.argwhere(cv2_mask_bool),axis=0)
+        centroid = np.mean(np.argwhere(segms[i]),axis=0)
         centroid_x, centroid_y = int(centroid[1]), int(centroid[0])
 
         cv2_mask_rgb = cv2.merge((cv2_mask, cv2_mask, cv2_mask))
@@ -1949,12 +2010,31 @@ def on_ui_settings():
     shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=section))
     shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
 
-def create_segmasks(results):
+
+def _create_segms(gray, bboxes):
+    segms = []
+    for x0, y0, x1, y1 in bboxes:
+        # make black (blank) image
+        mask = np.zeros((gray.shape), np.uint8)
+        # draw white rectangle
+        cv2.rectangle(mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
+        mask_bool = mask.astype(bool)
+        segms.append(mask_bool)
+
+    return segms
+
+
+def create_segmasks(gray_image, results):
+    bboxes = results[1]
     segms = results[2]
+
+    if len(segms) == 0:
+        segms = _create_segms(gray_image, bboxes)
+
     segmasks = []
-    for i in range(len(segms)):
-        cv2_mask = segms[i].astype(np.uint8) * 255
-        mask = Image.fromarray(cv2_mask)
+    for i in range(len(bboxes)):
+        mask = segms[i].astype(np.uint8) * 255
+        mask = Image.fromarray(mask)
         segmasks.append(mask)
 
     return segmasks
@@ -1966,7 +2046,7 @@ def create_polyline_from_segms(segms):
         mask = segms[i].astype(np.uint8) * 255
         #contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        polygons = [np.array(polygon).squeeze().tolist() for polygon in contours]
+        polygons = [np.array(polygon).squeeze().reshape(-1).tolist() for polygon in contours]
         #polygons = [np.array(polygon).squeeze() for polygon in contours]
         polys.append(polygons)
     return polys
@@ -2167,11 +2247,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_p
     else:
         model = init_detector(conf, model_checkpoint, device=model_device, palette="random")
         results = inference_detector(model, np.array(image)).pred_instances
-    cv2_image = np.array(image)
-    cv2_image = cv2_image[:, :, ::-1].copy()
-    cv2_gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY)
 
-    segms = []
     bboxes = []
     scores = []
     if mmcv_legacy:
@@ -2187,12 +2263,6 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_p
         bboxes = results.bboxes.cpu().numpy()
         scores = results.scores.cpu().numpy()
         labels = results.labels
-
-    for x0, y0, x1, y1 in bboxes:
-        cv2_mask = np.zeros((cv2_gray.shape), np.uint8)
-        cv2.rectangle(cv2_mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
-        cv2_mask_bool = cv2_mask.astype(bool)
-        segms.append(cv2_mask_bool)
 
     n, m = bboxes.shape
     results = [[], [], [], []]
@@ -2234,7 +2304,6 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_p
 
         results[0].append(lab)
         results[1].append(bboxes[i])
-        results[2].append(segms[i])
         results[3].append(scores[i])
 
     return results

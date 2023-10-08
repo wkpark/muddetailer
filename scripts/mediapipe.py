@@ -56,21 +56,11 @@ def mediapipe_detector_face(image,
     npimg = npimg[:, :, ::-1].copy()
     gray = cv2.cvtColor(npimg, cv2.COLOR_BGR2GRAY)
 
-    segms = []
-    for x0, y0, x1, y1 in bboxes:
-        mask = np.zeros((gray.shape), np.uint8)
-        #x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-        #cv2.rectangle(mask, (x0, y0), (x1, y1), 255, -1)
-        cv2.rectangle(mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
-        mask_bool = mask.astype(bool)
-        segms.append(mask_bool)
-
     #results = [[]] * 4 # not work
     results = [[], [], [], []]
     for i in range(len(bboxes)):
         results[0].append(label)
         results[1].append(bboxes[i])
-        results[2].append(segms[i])
         results[3].append(scores[i])
 
     #preview_image = Image.fromarray(cv2.cvtColor(preview, cv2.COLOR_BGR2RGB))

@@ -111,7 +111,7 @@ function overlay_masks() {
     }
 
     if (masks) {
-        var canvas = make_mask(masks[0], sels, is_img2img);
+        var canvas = make_mask(masks, sels, is_img2img);
         if (canvas) {
             console.log("canvas created");
         }
@@ -242,7 +242,15 @@ function make_mask(masks, selected, is_img2img) {
             ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',0.6)';
             var poly = segms[i];
             for (var k = 0; k < poly.length; k++) {
-                seg = poly[k];
+                var seg = poly[k];
+                if (typeof seg[0] == 'number') {
+                    // 1-dim array to 2dim array: x,y,x1,y1,x2,y2 -> [x,y], [x1,y1], [x2,y2], ...
+                    var tmp = [];
+                    while(seg.length)
+                        tmp.push(seg.splice(0,2));
+                    seg = tmp;
+                }
+
                 ctx.beginPath();
                 ctx.moveTo(seg[0][0], seg[0][1]);
                 for (var j = 1; j < seg.length; j++) {
