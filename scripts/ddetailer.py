@@ -72,9 +72,19 @@ def list_models(model_path, real=True):
             models.append(title)
             models_alias[title] = filename
 
+        def sortkey(name):
+            order = [ "face", "hand", "person"]
+            if all(cat not in name for cat in order):
+                return 100
+            for j, cat in enumerate(order):
+                if cat in name:
+                    return j
+            # not reach
+            return 100
+
         if real is False:
             models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
-            models = sorted(models)
+            models = sorted(models, key=sortkey)
         return models
 
 def startup():
@@ -377,6 +387,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 enabled = gr.Checkbox(label="Enable", value=False, visible=True)
 
             model_list = list_models(dd_models_path, False)
+            default_model = match_modelname("face_yolov8n.pth")
             if is_img2img:
                 info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
             else:
@@ -384,8 +395,8 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Group(), gr.Tabs():
                 with gr.Tab("Primary"):
                     with gr.Row():
-                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=model_list[0], visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path, False)},"mudd_refresh_model_a")
+                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=default_model, visible=True, type="value")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(dd_models_path, False) + ["None"]},"mudd_refresh_model_a")
                         dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
@@ -432,7 +443,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 with gr.Tab("Secondary"):
                     with gr.Row():
-                        dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=False, type="value")
+                        dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=True, type="value")
                         create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path, False)},"mudd_refresh_model_b")
                         dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
@@ -1827,20 +1838,29 @@ def modeldataset(model_shortname):
         dataset = 'bbox'
     return dataset
 
-def modelpath(model_shortname):
+def match_modelname(modelname):
     model_list = list_models(dd_models_path)
-    if model_shortname.find("[") == -1:
+
+    if modelname.find("[") == -1:
         for model in model_list:
-            if model_shortname in model:
+            if modelname in model:
                 tmp = model.split(" ")[0]
-                if model_shortname == tmp.split("/")[-1]:
-                    model_shortname = model
+                if modelname == tmp.split("/")[-1]:
+                    modelname = model
                     break
 
-    if model_shortname in models_alias:
-        path = models_alias[model_shortname]
-        model_h = model_shortname.split("[")[-1].split("]")[0]
-        if ( model_hash(path) == model_h):
+    if modelname in models_alias:
+        return modelname
+    return None
+
+
+def modelpath(modelname):
+    model = match_modelname(modelname)
+
+    if model in models_alias:
+        path = models_alias[model]
+        model_h = model.split("[")[-1].split("]")[0]
+        if model_hash(path) == model_h:
             return path
 
     raise gr.Error("No matched model found.")
