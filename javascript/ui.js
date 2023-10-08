@@ -120,6 +120,35 @@ function overlay_masks() {
     return res;
 }
 
+function reset_masks() {
+    var res = Array.from(arguments);
+
+    var is_img2img = res[2];
+
+    var tabname = is_img2img ? "img2img" : "txt2img";
+
+    var gallery_id = "mudd_inpainting_image";
+    if (tabname == "img2img") {
+        // get the current tabId
+        var tab = get_img2img_tab_index();
+        var tabid = tab[0]; // tab Id
+
+        var tabs = [ "img2img_image", "img2img_sketch", "img2maskimg", "inpaint_sketch" ];
+        if (tabid > 4 || tabid < 0)
+            tabid = 0;
+        gallery_id = tabs[tabid];
+    }
+    var gallery = gradioApp().querySelector('#' + gallery_id + ' .image-container');
+
+    // get canvas wrapper
+    var wrap = gradioApp().querySelectorAll("#" + gallery_id + " .mudd_masks_wrapper")[0];
+    if (wrap) {
+        gallery.removeChild(wrap);
+    }
+
+    return res;
+}
+
 function make_mask(masks, selected, is_img2img) {
     var segms = masks.segms;
     var bboxes = masks.bboxes;

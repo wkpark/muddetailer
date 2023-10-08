@@ -576,11 +576,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     def get_pnginfo(image):
                         if image is None:
-                            return '', gr.update(interactive=False, variant="secondary"), gr.update(), gr.update()
+                            return '', gr.update(interactive=False, variant="secondary"), "", ""
 
                         geninfo, _ = images.read_info_from_image(image)
                         if geninfo is None or geninfo.strip() == "":
-                            return '', gr.update(interactive=False, variant="secondary"), gr.update(), gr.update()
+                            return '', gr.update(interactive=False, variant="secondary"), "", ""
 
                         params = parse_prompt(geninfo)
                         # auto update masks info.
@@ -624,15 +624,15 @@ class MuDetectionDetailerScript(scripts.Script):
                         return selected
 
 
-                    def update_labels(masks):
+                    def update_labels(masks, dummy_label, is_img2img):
                         """show selectable mask labels in the labels dropdown components"""
                         if masks:
                             try:
                                 loaded = json.loads(masks)
                             except Exception as e:
-                                return gr.update()
+                                return gr.update(choices=[], value=[])
                         else:
-                            return gr.update()
+                            return gr.update(choices=[], value=[])
 
                         bboxes = loaded.get("bboxes", None)
                         if bboxes is not None:
@@ -641,19 +641,21 @@ class MuDetectionDetailerScript(scripts.Script):
 
                             return gr.update(choices=labs, value=[])
 
-                        return gr.update()
+                        return gr.update(choices=[], value=[])
 
 
                     masks_a.change(
+                        _js="reset_masks",
                         fn=update_labels,
-                        inputs=[masks_a],
+                        inputs=[masks_a, dummy_label_a, dummy_true if is_img2img else dummy_false],
                         outputs=[labels_a],
                         show_progress=False,
                     )
 
                     masks_b.change(
+                        _js="reset_masks",
                         fn=update_labels,
-                        inputs=[masks_b],
+                        inputs=[masks_b, dummy_label_b, dummy_true if is_img2img else dummy_false],
                         outputs=[labels_b],
                         show_progress=False,
                     )
