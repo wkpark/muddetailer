@@ -2191,12 +2191,13 @@ def check_validity():
     print(f" You can disable validity tester in the Settings-> μ DDetailer.")
 
 def get_device():
-    device_id = shared.cmd_opts.device_id
-    if device_id is not None:
-        cuda_device = f"cuda:{device_id}"
-    else:
-        cuda_device = "cpu"
-    return cuda_device
+    device = devices.get_optimal_device_name()
+    if device == "mps":
+        return device
+    if any(getattr(cmd_opts, vram, False) for vram in ["lowvram", "medvram"]):
+        return "cpu"
+
+    return device
 
 # check validity of models
 check_validity()
