@@ -395,9 +395,9 @@ class MuDetectionDetailerScript(scripts.Script):
 
     def ui(self, is_img2img):
 
-        with gr.Accordion("µ Detection Detailer", open=False):
+        with gr.Accordion("µ Detection Detailer", open=False, elem_id="mudd_main_" + ("txt2img" if not is_img2img else "img2img")):
             with gr.Row():
-                enabled = gr.Checkbox(label="Enable", value=False, visible=True)
+                enabled = gr.Checkbox(label="Enable", value=False, visible=True, elem_classes=["mudd-enabled"])
 
             model_list = list_models(dd_models_path, False)
             default_model = match_modelname("face_yolov8n.pth")
