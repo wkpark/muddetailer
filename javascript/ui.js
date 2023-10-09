@@ -107,7 +107,14 @@ function overlay_masks() {
     try {
         masks = JSON.parse(masks_data.value);
     } catch(e) {
-        console.log(e);
+        // only one detection found case
+        var bbox = masks_data.value.split(",");
+        if (bbox.length == 5) {
+            var lab = bbox.splice(0, 1);
+            lab = lab[0].split(" ");
+            var score = lab.splice(-1)
+            masks = { "labels": [lab.join(" ")], "scores": [parseFloat(score)] , "bboxes": [ bbox.map(x => parseInt(x)) ] }
+        }
     }
 
     if (masks) {

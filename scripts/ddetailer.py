@@ -641,6 +641,11 @@ class MuDetectionDetailerScript(scripts.Script):
                             try:
                                 loaded = json.loads(masks)
                             except Exception as e:
+                                tmp = masks.split(",")
+                                if len(tmp) == 5:
+                                    # only one detection case.
+                                    labs = [f"{tmp[0]}:1"]
+                                    return gr.update(choices=labs, value=[])
                                 return gr.update(choices=[], value=[])
                         else:
                             return gr.update(choices=[], value=[])
@@ -997,17 +1002,29 @@ class MuDetectionDetailerScript(scripts.Script):
             # prepare outputs
             masks_a = processed.masks_a
             labs_a = []
-            bboxes = masks_a.get("bboxes", None)
-            if bboxes is not None:
+            if type(masks_a) is dict and masks_a.get("bboxes", None):
                 scores = masks_a["scores"]
                 labs_a = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_a["labels"])]
+            else:
+                tmp = masks_a.split(",")
+                if len(tmp) == 5:
+                    # only one detection case.
+                    labs_a = [f"{tmp[0]}:1"]
+                else:
+                    lbas_a = []
 
             masks_b = processed.masks_b
             labs_b = []
-            bboxes = masks_b.get("bboxes", None)
-            if bboxes is not None:
+            if type(masks_b) is dict and masks_b.get("bboxes", None):
                 scores = masks_b["scores"]
                 labs_b = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_b["labels"])]
+            else:
+                tmp = masks_b.split(",")
+                if len(tmp) == 5:
+                    # only one detection case.
+                    labs_b = [f"{tmp[0]}:1"]
+                else:
+                    lbas_b = []
 
             return (image if input is None else gr.update(), gal, geninfo,
                 gr.update(visible=True if len(labs_a) > 0 else False),
@@ -1369,6 +1386,19 @@ class MuDetectionDetailerScript(scripts.Script):
         npimg = npimg[:, :, ::-1].copy()
         gray_image = cv2.cvtColor(npimg, cv2.COLOR_BGR2GRAY)
 
+        def info_results(results):
+            bboxes = [bbox.astype(np.intp).tolist() for bbox in results[1]]
+            scores = [round(score.item(), 4) for score in results[3]]
+            detected = {"bboxes": bboxes, "labels": results[0], "scores": scores}
+            if len(results[2]) > 0:
+                polylines = create_polyline_from_segms(results[2])
+                detected["segms"] = polylines
+
+            # only one detection with bbox case -> A-face 0.92,100,120,190,200
+            if len(results[2]) == 0 and len(bboxes) == 1:
+                detected = results[0][0] + f" {scores[0]}" + "," + ",".join([str(x) for x in bboxes[0]])
+            return detected
+
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -1384,12 +1414,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
 
-                bboxes = [bbox.astype(np.intp).tolist() for bbox in results_b_pre[1]]
-                scores = [score.item() for score in results_b_pre[3]]
-                detected_b = {"bboxes": bboxes, "labels": results_b_pre[0], "scores": scores}
-                if len(results_b_pre[2]) > 0:
-                    polylines = create_polyline_from_segms(results_b_pre[2])
-                    detected_b["segms"] = polylines
+                detected_b = info_results(results_b_pre)
 
                 print(f"Total {len(results_b_pre[1])} are detected, using model {label_b_pre}...")
 
@@ -1449,12 +1474,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     label_a = dd_bitwise_op
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 results_a = sort_results(results_a, dd_detect_order_a)
-                bboxes = [bbox.astype(np.intp).tolist() for bbox in results_a[1]]
-                scores = [round(score.item(), 4) for score in results_a[3]]
-                detected_a = {"bboxes": bboxes, "labels": results_a[0], "scores": scores}
-                if len(results_a[2]) > 0:
-                    polylines = create_polyline_from_segms(results_a[2])
-                    detected_a["segms"] = polylines
+
+                detected_a = info_results(results_a)
 
                 print(f"Total {len(results_a[1])} are detected, using model {label_a}...")
 
@@ -1467,10 +1488,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     results_b = sort_results(results_b, dd_detect_order_b)
                     bboxes = [bbox.astype(np.intp).tolist() for bbox in results_b[1]]
                     scores = [round(score.item(), 4) for score in results_b[3]]
-                    detected_b = {"bboxes": bboxes, "labels": results_b[0], "scores": scores}
-                    if len(results_b[2]) > 0:
-                        polylines = create_polyline_from_segms(results_b[2])
-                        detected_b["segms"] = polylines
+
+                    detected_b = info_results(results_b)
 
                     print(f"Total {len(results_b[1])} are detected, using model {label_b}...")
 
@@ -1537,9 +1556,9 @@ class MuDetectionDetailerScript(scripts.Script):
 
         masks_params = {}
         if len(detected_a) > 0:
-            masks_params["MuDDetailer detection a"] = json.dumps(detected_a, separators=(",", ":"))
+            masks_params["MuDDetailer detection a"] = json.dumps(detected_a, separators=(",", ":")) if type(detected_a) is dict else detected_a
         if len(detected_b) > 0:
-            masks_params["MuDDetailer detection b"] = json.dumps(detected_b, separators=(",", ":"))
+            masks_params["MuDDetailer detection b"] = json.dumps(detected_b, separators=(",", ":")) if type(detected_b) is dict else detected_b
 
         if len(masks_params) > 0:
             p.extra_generation_params.update(masks_params)
