@@ -1362,7 +1362,7 @@ class MuDetectionDetailerScript(scripts.Script):
             shared.total_tqdm.updateTotal(0)
 
         # init random
-        np.random.seed(1337)
+        np.random.seed(p_txt.seed)
 
         detected_a = {}
         detected_b = {}
