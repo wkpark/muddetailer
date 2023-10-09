@@ -2053,7 +2053,8 @@ def on_ui_settings():
     shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=section))
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=section))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=section))
-    shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of models on startup", section=section))
+    shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of model configs on startup", section=section))
+    shared.opts.add_option("mudd_check_model_validity", shared.OptionInfo(False, "Check validity of models on startup", section=section))
     shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
 
 
@@ -2114,19 +2115,36 @@ except ImportError:
 
 def check_validity():
     """check validity of model + config settings"""
+    model_list = list_models(dd_models_path)
+    print(f" Total \033[92m{len(model_list)}\033[0m mmdet models and \033[92m{3}\033[0m mediapipe models.")
     check = shared.opts.data.get("mudd_check_validity", True)
     if not check:
+        print(f" You can enable validity tester in the Settings-> μ DDetailer.")
         return
 
-    model_list = list_models(dd_models_path)
+    modelcheck = shared.opts.data.get("mudd_check_model_validity", False)
+
     model_device = get_device()
-    for title in model_list:
+    valid = 0
+    valid_config = 0
+    for j, title in enumerate(model_list):
         checkpoint = models_alias[title]
         config = os.path.splitext(checkpoint)[0] + ".py"
         if not os.path.exists(config):
             continue
 
-        conf = Config.fromfile(config)
+        try:
+            conf = Config.fromfile(config)
+            print(f"\033[92mSUCCESS\033[0m - success to load config for {checkpoint}!")
+        except Exception as e:
+            continue
+            print(f"\033[91mFAIL\033[0m - failed to load config for {checkpoint}, please check validity of the config - {e}")
+        valid_config += 1
+
+        if not modelcheck:
+            if j == 0:
+                print(f" You can enable model validity tester in the Settings-> μ DDetailer.")
+            continue
         # check default scope
         if "yolov8" in config:
             conf["default_scope"] = "mmyolo"
@@ -2138,10 +2156,17 @@ def check_validity():
 
             print(f"\033[92mSUCCESS\033[0m - success to load {checkpoint}!")
             del model
+            valid += 1
         except Exception as e:
-            print(f"\033[91mFAIL\033[0m - failed to load {checkpoint}, please check validity of the model or the config - {e}")
+            print(f"\033[91mFAIL\033[0m - failed to load {checkpoint}, please check validity of the model - {e}")
 
         devices.torch_gc()
+
+    if modelcheck:
+        print(f" Total \033[92m{valid_config}\033[0m valid mmdet configs, \033[92m{valid}\033[0m models are found.")
+    else:
+        print(f" Total \033[92m{valid_config}\033[0m valid mmdet configs are found.")
+    print(f" You can disable validity tester in the Settings-> μ DDetailer.")
 
 def get_device():
     device_id = shared.cmd_opts.device_id
