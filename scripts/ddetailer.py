@@ -1431,7 +1431,8 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 detected_b = info_results(results_b_pre)
 
-                print(f"Total {len(results_b_pre[1])} are detected, using model {label_b_pre}...")
+                detected = len(results_b_pre[1])
+                print(f"Total {detected} {'was' if detected == 1 else 'were'} detected with model {label_b_pre}...")
 
                 masks_b_pre = create_segmasks(gray_image, results_b_pre)
                 masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
@@ -1449,7 +1450,8 @@ class MuDetectionDetailerScript(scripts.Script):
                         gen_selected = range(len(masks_b_pre))
                     state.job_count += len(gen_selected)
 
-                    print(f"Processing {len(gen_selected)} model {label_b_pre} detections for output generation {p_txt._idx + 1}.")
+                    selected = len(gen_selected)
+                    print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b_pre} for output generation {p_txt._idx + 1}.")
 
                     p2 = copy(p)
                     p2.seed = start_seed
@@ -1479,7 +1481,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         init_image = processed.images[0]
 
                 else:
-                    print(f"No model B detections for output generation {p_txt._idx + 1} with current settings.")
+                    print(f"No model B detection for output generation {p_txt._idx + 1} with current settings.")
 
             # Primary run
             if (dd_model_a != "None"):
@@ -1491,7 +1493,8 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 detected_a = info_results(results_a)
 
-                print(f"Total {len(results_a[1])} are detected, using model {label_a}...")
+                detected = len(results_a[1])
+                print(f"Total {detected} {'was' if detected == 1 else 'were'} detected by model {label_a}...")
 
                 masks_a = create_segmasks(gray_image, results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
@@ -1503,7 +1506,8 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     detected_b = info_results(results_b)
 
-                    print(f"Total {len(results_b[1])} are detected, using model {label_b}...")
+                    detected = len(results_b[1])
+                    print(f"Total {detected} {'was' if detected == 1 else 'were'} detected by model {label_b}...")
 
                     masks_b = create_segmasks(gray_image, results_b)
                     masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
@@ -1521,7 +1525,7 @@ class MuDetectionDetailerScript(scripts.Script):
                                     del result[i]
 
                     else:
-                        print("No model B detections to overlap with model A masks")
+                        print("No model B detection to overlap with model A masks")
                         results_a = []
                         masks_a = []
 
@@ -1539,7 +1543,9 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     state.job_count += len(gen_selected)
 
-                    print(f"Processing {len(gen_selected)} model {label_a} detections for output generation {p_txt._idx + 1}.")
+                    selected = len(gen_selected)
+                    print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_a} for output generation {p_txt._idx + 1}.")
+
                     p.seed = start_seed
                     p.init_images = [init_image]
 
