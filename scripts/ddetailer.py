@@ -403,13 +403,15 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     with gr.Group():
                         with gr.Group(visible=False) as prompt_1:
-                            with gr.Row():
+                            with gr.Row(elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_toprow_prompt"):
                                 dd_prompt = gr.Textbox(
                                     label="prompt_1",
                                     show_label=False,
                                     lines=3,
                                     placeholder="Prompt"
-                                    + "\nIf blank, the main prompt is used."
+                                    + "\nIf blank, the main prompt is used.",
+                                    elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_prompt",
+                                    elem_classes=["prompt"],
                                 )
 
                                 dd_neg_prompt = gr.Textbox(
@@ -417,7 +419,9 @@ class MuDetectionDetailerScript(scripts.Script):
                                     show_label=False,
                                     lines=3,
                                     placeholder="Negative prompt"
-                                    + "\nIf blank, the main negative prompt is used."
+                                    + "\nIf blank, the main negative prompt is used.",
+                                    elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_neg_prompt",
+                                    elem_classes=["prompt"],
                                 )
                         with gr.Group(visible=False) as model_a_options:
                             with gr.Row():
@@ -451,13 +455,15 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     with gr.Group():
                         with gr.Group(visible=False) as prompt_2:
-                            with gr.Row():
+                            with gr.Row(elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_2_toprow_prompt"):
                                 dd_prompt_2 = gr.Textbox(
                                     label="prompt_2",
                                     show_label=False,
                                     lines=3,
                                     placeholder="Prompt"
-                                    + "\nIf blank, the main prompt is used."
+                                    + "\nIf blank, the main prompt is used.",
+                                    elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_prompt_2",
+                                    elem_classes=["prompt"],
                                 )
 
                                 dd_neg_prompt_2 = gr.Textbox(
@@ -465,7 +471,9 @@ class MuDetectionDetailerScript(scripts.Script):
                                     show_label=False,
                                     lines=3,
                                     placeholder="Negative prompt"
-                                    + "\nIf blank, the main negative prompt is used."
+                                    + "\nIf blank, the main negative prompt is used.",
+                                    elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_neg_prompt_2",
+                                    elem_classes=["prompt"],
                                 )
 
                         with gr.Group(visible=False) as model_b_options:
