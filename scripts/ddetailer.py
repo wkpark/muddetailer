@@ -1005,7 +1005,7 @@ class MuDetectionDetailerScript(scripts.Script):
             if type(masks_a) is dict and masks_a.get("bboxes", None):
                 scores = masks_a["scores"]
                 labs_a = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_a["labels"])]
-            else:
+            elif type(masks_a) is str:
                 tmp = masks_a.split(",")
                 if len(tmp) == 5:
                     # only one detection case.
@@ -1018,7 +1018,7 @@ class MuDetectionDetailerScript(scripts.Script):
             if type(masks_b) is dict and masks_b.get("bboxes", None):
                 scores = masks_b["scores"]
                 labs_b = [f"{lab}{scores[i]>0 and f' {round(scores[i],2)}' or ''}:{i+1}" for i, lab in enumerate(masks_b["labels"])]
-            else:
+            elif type(masks_b) is str:
                 tmp = masks_b.split(",")
                 if len(tmp) == 5:
                     # only one detection case.
@@ -1029,8 +1029,8 @@ class MuDetectionDetailerScript(scripts.Script):
             return (image if input is None else gr.update(), gal, geninfo,
                 gr.update(visible=True if len(labs_a) > 0 else False),
                 gr.update(visible=True if len(labs_b) > 0 else False),
-                json.dumps(masks_a, separators=(",", ":")),
-                json.dumps(masks_b, separators=(",", ":")),
+                json.dumps(masks_a, separators=(",",":")) if type(masks_a) is dict else masks_a,
+                json.dumps(masks_b, separators=(",",":")) if type(masks_b) is dict else masks_b,
                 gr.update(choices=labs_a, visible=True if len(labs_a) > 0 else False),
                 gr.update(choices=labs_b, visible=True if len(labs_b) > 0 else False),
                 plaintext_to_html(info))
@@ -1566,11 +1566,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
         processed.masks_a = detected_a
         processed.masks_b = detected_b
-        # append masks if needed case
-        if getattr(self, "_image_masks", None) is None:
-            return processed
 
-        self._image_masks.append([])
+        # append masks if needed case
+        if getattr(self, "_image_masks", None) is not None:
+            self._image_masks.append([])
+
         if len(output_images) > 0:
             pp.image = output_images[0]
             pp.image.info["parameters"] = info
