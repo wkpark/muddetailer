@@ -2,7 +2,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 
 def mediapipe_detector_face(image,
@@ -54,7 +54,6 @@ def mediapipe_detector_face(image,
             scores.append(np.float32(0))
 
     npimg = npimg[:, :, ::-1].copy()
-    gray = cv2.cvtColor(npimg, cv2.COLOR_BGR2GRAY)
 
     #results = [[]] * 4 # not work
     results = [[], [], [], []]
@@ -76,7 +75,7 @@ def mediapipe_detector_facemesh(image,
     mp_facemesh = mp.solutions.face_mesh
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
-    drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
+    #drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 
     masks = []
     scores = []

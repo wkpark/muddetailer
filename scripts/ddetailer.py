@@ -18,9 +18,9 @@ from scripts.mediapipe import mediapipe_detector_facemesh as mp_detector_facemes
 from copy import copy, deepcopy
 from modules import processing, images
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
-from modules.call_queue import wrap_gradio_gpu_call, wrap_queued_call, wrap_gradio_call
-from modules.generation_parameters_copypaste import parse_generation_parameters, ParamBinding, register_paste_params_button
-from modules.processing import Processed, StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img
+from modules.call_queue import wrap_gradio_gpu_call
+from modules.generation_parameters_copypaste import ParamBinding, register_paste_params_button
+from modules.processing import Processed, StableDiffusionProcessingImg2Img
 from modules.shared import opts, cmd_opts, state
 from modules.sd_models import model_hash
 from modules.paths import models_path, data_path
@@ -35,7 +35,7 @@ models_list = {}
 models_alias = {}
 def list_models(model_path, real=True):
         model_list = modelloader.load_models(model_path=model_path, ext_filter=[".pth"])
-        
+
         def modeltitle(path, shorthash):
             abspath = os.path.abspath(path)
 
@@ -52,7 +52,7 @@ def list_models(model_path, real=True):
             shortname = os.path.splitext(name.replace("/", "_"))[0]
 
             return f'{name} [{shorthash}]', shortname
-        
+
         models = []
         for filename in model_list:
             if filename not in models_list:
@@ -94,14 +94,14 @@ def startup():
         python = sys.executable
         run(f'"{python}" -m pip install -U openmim', desc="Installing openmim", errdesc="Couldn't install openmim")
         if legacy:
-            run(f'"{python}" -m mim install mmcv-full', desc=f"Installing mmcv-full", errdesc=f"Couldn't install mmcv-full")
-            run(f'"{python}" -m pip install mmdet==2.28.2', desc=f"Installing mmdet", errdesc=f"Couldn't install mmdet")
+            run(f'"{python}" -m mim install mmcv-full', desc="Installing mmcv-full", errdesc="Couldn't install mmcv-full")
+            run(f'"{python}" -m pip install mmdet==2.28.2', desc="Installing mmdet", errdesc="Couldn't install mmdet")
         else:
-            run(f'"{python}" -m mim install mmcv>==2.0.0', desc=f"Installing mmcv", errdesc=f"Couldn't install mmcv")
-            run(f'"{python}" -m pip install mmdet>=3', desc=f"Installing mmdet", errdesc=f"Couldn't install mmdet")
+            run(f'"{python}" -m mim install mmcv>==2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
+            run(f'"{python}" -m pip install mmdet>=3', desc="Installing mmdet", errdesc="Couldn't install mmdet")
 
     if not legacy and not is_installed("mmyolo"):
-        run(f'"{python}" -m mim install mmyolo', desc=f"Installing mmyolo", errdesc=f"Couldn't install mmyolo")
+        run(f'"{python}" -m mim install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
 
     if not is_installed("mediapipe"):
         run(f'"{python}" -m pip install protobuf>=3.20', desc="Installing protobuf", errdesc="Couldn't install protobuf")
@@ -342,7 +342,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
     def title(self):
         return "Mu Detection Detailer"
-    
+
     def show(self, is_img2img):
         return scripts.AlwaysVisible
 
@@ -394,7 +394,6 @@ class MuDetectionDetailerScript(scripts.Script):
             return gr.update(visible=False, choices=[], value=[])
 
     def ui(self, is_img2img):
-        import modules.ui
 
         with gr.Accordion("µ Detection Detailer", open=False):
             with gr.Row():
@@ -403,9 +402,9 @@ class MuDetectionDetailerScript(scripts.Script):
             model_list = list_models(dd_models_path, False)
             default_model = match_modelname("face_yolov8n.pth")
             if is_img2img:
-                info = gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
+                gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
             else:
-                info = gr.HTML("")
+                gr.HTML("")
             with gr.Group(), gr.Tabs():
                 with gr.Tab("Primary"):
                     with gr.Row():
@@ -662,7 +661,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         if masks:
                             try:
                                 loaded = json.loads(masks)
-                            except Exception as e:
+                            except Exception:
                                 tmp = masks.split(",")
                                 if len(tmp) == 5:
                                     # only one detection case.
@@ -803,7 +802,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_cfg_scale.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value > 0 else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value > 0 else gr.update()
                 },
                 inputs=[dd_cfg_scale],
                 outputs=[advanced],
@@ -812,7 +811,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_steps.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value > 0 else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value > 0 else gr.update()
                 },
                 inputs=[dd_steps],
                 outputs=[advanced],
@@ -821,7 +820,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_noise_multiplier.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value > 0 else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value > 0 else gr.update()
                 },
                 inputs=[dd_noise_multiplier],
                 outputs=[advanced],
@@ -830,7 +829,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_checkpoint.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same checkpoint", "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value not in [ "Use same checkpoint", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_checkpoint],
                 outputs=[advanced],
@@ -839,7 +838,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_vae.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same VAE", "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value not in [ "Use same VAE", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_vae],
                 outputs=[advanced],
@@ -848,7 +847,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_sampler.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value not in [ "Use same sampler", "Default", "None" ] else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value not in [ "Use same sampler", "Default", "None" ] else gr.update()
                 },
                 inputs=[dd_sampler],
                 outputs=[advanced],
@@ -857,7 +856,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_clipskip.change(
                 lambda value: {
-                    advanced:gr_open(True) if advanced.open == False and value > 0 else gr.update()
+                    advanced:gr_open(True) if advanced.open is False and value > 0 else gr.update()
                 },
                 inputs=[dd_clipskip],
                 outputs=[advanced],
@@ -1032,8 +1031,6 @@ class MuDetectionDetailerScript(scripts.Script):
                 if len(tmp) == 5:
                     # only one detection case.
                     labs_a = [f"{tmp[0]}:1"]
-                else:
-                    lbas_a = []
 
             masks_b = processed.masks_b
             labs_b = []
@@ -1045,8 +1042,6 @@ class MuDetectionDetailerScript(scripts.Script):
                 if len(tmp) == 5:
                     # only one detection case.
                     labs_b = [f"{tmp[0]}:1"]
-                else:
-                    lbas_b = []
 
             return (image if input is None else gr.update(), gal, geninfo,
                 gr.update(visible=True if len(labs_a) > 0 else False),
@@ -1076,8 +1071,6 @@ class MuDetectionDetailerScript(scripts.Script):
             return None
 
         def on_after_components(component, **kwargs):
-            DD = MuDetectionDetailerScript
-
             elem_id = getattr(component, "elem_id", None)
             if elem_id is None:
                 return
@@ -1431,7 +1424,7 @@ class MuDetectionDetailerScript(scripts.Script):
             masks_b_pre = []
 
             # Optional secondary pre-processing run
-            if (dd_model_b != "None" and dd_preprocess_b): 
+            if (dd_model_b != "None" and dd_preprocess_b):
                 label_b_pre = "B"
                 results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
                 results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
@@ -1449,7 +1442,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     shared.state.assign_current_image(segmask_preview_b)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_b, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-                    gen_count = len(masks_b_pre)
 
                     if select_masks_b:
                         gen_selected = [i for i in select_masks_b if i < len(masks_b_pre) and i >= 0]
@@ -1508,8 +1500,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     label_b = "B"
                     results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
                     results_b = sort_results(results_b, dd_detect_order_b)
-                    bboxes = [bbox.astype(np.intp).tolist() for bbox in results_b[1]]
-                    scores = [round(score.item(), 4) for score in results_b[3]]
 
                     detected_b = info_results(results_b)
 
@@ -1529,19 +1519,18 @@ class MuDetectionDetailerScript(scripts.Script):
                                 del masks_a[i]
                                 for result in results_a:
                                     del result[i]
-                                    
+
                     else:
                         print("No model B detections to overlap with model A masks")
                         results_a = []
                         masks_a = []
-                
+
                 if (len(masks_a) > 0):
                     results_a = update_result_masks(results_a, masks_a)
                     segmask_preview_a = create_segmask_preview(results_a, init_image, select_masks_a)
                     shared.state.assign_current_image(segmask_preview_a)
                     if ( opts.mudd_save_previews):
                         images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-                    gen_count = len(masks_a)
 
                     if select_masks_a:
                         gen_selected = [i for i in select_masks_a if i < len(masks_a) and i >= 0]
@@ -1563,16 +1552,16 @@ class MuDetectionDetailerScript(scripts.Script):
                         p.image_mask = masks_a[i]
                         if ( opts.mudd_save_masks):
                             images.save_image(masks_a[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-                        
+
                         processed = processing.process_images(p)
                         p.seed = processed.seed + 1
                         p.subseed = processed.subseed + 1
                         p.init_images = processed.images
-                    
+
                     if len(gen_selected) > 0 and len(processed.images) > 0:
                         output_images[n] = processed.images[0]
-  
-                else: 
+
+                else:
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
 
@@ -2000,7 +1989,7 @@ def create_segmask_preview(results, image, selected=None):
             text = name + f":{i+1}"
         (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, 0.4, 1)
         cv2.putText(cv2_image, text, (centroid_x - int(w/2), centroid_y), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color, 1, cv2.LINE_AA)
-    
+
     if ( len(segms) > 0):
         preview_image = Image.fromarray(cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB))
     else:
@@ -2046,7 +2035,7 @@ def offset_masks(masks, offset_x, offset_y):
         offset_mask = cv2_mask.copy()
         offset_mask = np.roll(offset_mask, -offset_y, axis=0)
         offset_mask = np.roll(offset_mask, offset_x, axis=1)
-        
+
         offset_masks.append(Image.fromarray(offset_mask))
     return offset_masks
 
@@ -2056,7 +2045,7 @@ def combine_masks(masks):
     for i in range(1, len(masks)):
         cv2_mask = np.array(masks[i])
         combined_cv2_mask = cv2.bitwise_or(combined_cv2_mask, cv2_mask)
-    
+
     combined_mask = Image.fromarray(combined_cv2_mask)
     return combined_mask
 
@@ -2141,7 +2130,7 @@ def check_validity():
     print(f" Total \033[92m{len(model_list)}\033[0m mmdet models and \033[92m{3}\033[0m mediapipe models.")
     check = shared.opts.data.get("mudd_check_validity", True)
     if not check:
-        print(f" You can enable validity tester in the Settings-> μ DDetailer.")
+        print(" You can enable validity tester in the Settings-> μ DDetailer.")
         return
 
     modelcheck = shared.opts.data.get("mudd_check_model_validity", False)
@@ -2165,7 +2154,7 @@ def check_validity():
 
         if not modelcheck:
             if j == 0:
-                print(f" You can enable model validity tester in the Settings-> μ DDetailer.")
+                print(" You can enable model validity tester in the Settings-> μ DDetailer.")
             continue
         # check default scope
         if "yolov8" in config:
@@ -2188,7 +2177,7 @@ def check_validity():
         print(f" Total \033[92m{valid_config}\033[0m valid mmdet configs, \033[92m{valid}\033[0m models are found.")
     else:
         print(f" Total \033[92m{valid_config}\033[0m valid mmdet configs are found.")
-    print(f" You can disable validity tester in the Settings-> μ DDetailer.")
+    print(" You can disable validity tester in the Settings-> μ DDetailer.")
 
 def get_device():
     device = devices.get_optimal_device_name()
