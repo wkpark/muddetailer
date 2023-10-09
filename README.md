@@ -2,6 +2,12 @@
 This is yet another detection detailer named μ-Detection Detailer (shortly μ-DDetailer) forked from [DDetailer](https://github.com/dustysys/ddetailer)
 as a postprocess extension for [Stable Diffusion web UI](https://github.com/AUTOMATIC1111/stable-diffusion-webui).
 
+## Features
+1. bbox/segment object detection using [MMDetection](https://github.com/open-mmlab/mmdetection), [MMYOLO](https://github.com/open-mmlab/mmyolo), [mediapipe](https://github.com/google/mediapipe)
+2. Inpainting helper added to support dynamically generated masks/segments viewer using js canvas to select detections easily.
+3. Support ADetailer infotext settings
+4. both mmdet 2.x / mmdet 3.x are supported
+
 ## Screenshot
 ![image](https://github.com/wkpark/muddetailer/assets/232347/2a6b69d4-34ed-486b-bd90-b109397b1f38)
 
@@ -27,7 +33,7 @@ With full-resolution inpainting, the extension is handy for improving faces with
 The models and dependencies should download automatically. To install them manually, follow the [official instructions for installing mmdet](https://mmcv.readthedocs.io/en/latest/get_started/installation.html#install-with-mim-recommended). The models can be [downloaded here](https://huggingface.co/dustysys/ddetailer) and should be placed in `/models/mmdet/bbox` for bounding box (`anime-face_yolov3`) or `/models/mmdet/segm` for instance segmentation models (`dd-person_mask2former`). See the [MMDetection docs](https://mmdetection.readthedocs.io/en/latest/1_exist_data_model.html) for guidance on training your own models. For using official MMDetection pretrained models see [here](https://github.com/dustysys/ddetailer/issues/5#issuecomment-1311231989), these are trained for photorealism. See [Troubleshooting](https://github.com/wkpark/muddetailer#troubleshooting) if you encounter issues during installation.
 
 ## Usage
-To use μ Detection Detailer in SD web UI, `enable` μ Detection Detailer first, and select optional parameters, the click 'Generate'. Here are some tips:
+To use μ Detection Detailer in SD web UI, `enable` μ Detection Detailer first, and select optional parameters, then click 'Generate'. Here are some tips:
 - `anime-face_yolov3` can detect the bounding box of faces as the primary model while `dd-person_mask2former` isolates the head's silhouette as the secondary model by using the bitwise AND option. Refer to [this example](https://github.com/dustysys/ddetailer/issues/4#issuecomment-1311200268).
 - The dilation factor expands the mask, while the x & y offsets move the mask around.
 - You can change the default prompt, negative prompt, and even checkpoint model.
