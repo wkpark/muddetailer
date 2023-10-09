@@ -112,8 +112,10 @@ def startup():
     list_model = list_models(dd_models_path)
 
     required = [
-        os.path.join(bbox_path, "mmdet_anime-face_yolov3.pth"),
-        os.path.join(segm_path, "mmdet_dd-person_mask2former.pth"),
+        (bbox_path, "mmdet_anime-face_yolov3.pth"),
+        (segm_path, "mmdet_dd-person_mask2former.pth"),
+        (segm_path, "yolov5_ins_s.pth"),
+        (segm_path, "yolov5_ins_n.pth"),
     ]
 
     optional = [
@@ -124,8 +126,8 @@ def startup():
     ]
 
     need_download = False
-    for model in required:
-        if not os.path.exists(model):
+    for path, model in required:
+        if not os.path.exists(os.path.join(path, model)):
             need_download = True
             break
 
@@ -152,6 +154,16 @@ def startup():
                     "https://huggingface.co/wkpark/muddetailer/resolve/main/mmdet/segm/mmdet_dd-person_mask2former.pth", # the same copy
                     segm_path,
                     file_name="mmdet_dd-person_mask2former.pth")
+        if not legacy and not os.path.exists(os.path.join(segm_path, "yolov5_ins_n.pth")):
+                load_file_from_url(
+                    "https://download.openmmlab.com/mmyolo/v0/yolov5/ins_seg/yolov5_ins_n-v61_syncbn_fast_8xb16-300e_coco_instance/yolov5_ins_n-v61_syncbn_fast_8xb16-300e_coco_instance_20230424_104807-84cc9240.pth",
+                    segm_path,
+                    file_name="yolov5_ins_n.pth")
+        if not legacy and not os.path.exists(os.path.join(segm_path, "yolov5_ins_s.pth")):
+                load_file_from_url(
+                    "https://download.openmmlab.com/mmyolo/v0/yolov5/ins_seg/yolov5_ins_s-v61_syncbn_fast_8xb16-300e_coco_instance/yolov5_ins_s-v61_syncbn_fast_8xb16-300e_coco_instance_20230426_012542-3e570436.pth",
+                    segm_path,
+                    file_name="yolov5_ins_s.pth")
 
         if legacy:
             break
@@ -188,6 +200,8 @@ def startup():
 
     configs = [
         (bbox_path, ["face_yolov8n.py", "face_yolov8s.py", "hand_yolov8n.py", "hand_yolov8s.py", "default_runtime.py", "yolov8_s_syncbn_fast_8xb16-500e_coco.py"]),
+        (segm_path, ["yolov5_ins_s.py", "yolov5_ins_n.py",
+            "yolov5_ins_s-v61_syncbn_fast_8xb16-300e_coco_instance.py", "yolov5_s-v61_syncbn_8xb16-300e_coco.py", "yolov5_s-v61_syncbn_fast_8xb16-300e_coco.py"]),
     ]
     for destdir, files in configs:
         for file in files:
