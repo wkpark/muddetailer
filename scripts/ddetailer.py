@@ -414,6 +414,13 @@ class MuDetectionDetailerScript(scripts.Script):
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
 
+                    enabled.input(
+                        fn=lambda enable, model: gr.update(value=default_model if enable and model == "None" else model),
+                        inputs=[enabled, dd_model_a],
+                        outputs=[dd_model_a],
+                        show_progress=False,
+                    )
+
                     with gr.Group():
                         with gr.Group(visible=False) as prompt_1:
                             with gr.Row(elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_toprow_prompt"):
@@ -731,7 +738,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     use_prompt_edit:gr_enable( modelname != "None" )
                 },
                 inputs= [dd_model_a],
-                outputs=[dd_model_b, model_a_options, options, use_prompt_edit]
+                outputs=[dd_model_b, model_a_options, options, use_prompt_edit],
+                show_progress=False,
             )
 
             self.infotext_fields = (
@@ -781,7 +789,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     use_prompt_edit_2:gr_enable( modelname != "None" )
                 },
                 inputs= [dd_model_b],
-                outputs=[model_b_options, model_b_options_2, operation, use_prompt_edit_2]
+                outputs=[model_b_options, model_b_options_2, operation, use_prompt_edit_2],
+                show_progress=False,
             )
 
             use_prompt_edit.change(
