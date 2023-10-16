@@ -40,7 +40,7 @@ def list_models(real=True):
         model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
         model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
 
-        def modeltitle(path, shorthash):
+        def modeltitle(path, shorthash=None):
             abspath = os.path.abspath(path)
 
             if abspath.startswith(dd_models_path):
@@ -57,10 +57,18 @@ def list_models(real=True):
 
             shortname = os.path.splitext(name.replace("/", "_"))[0]
 
-            return f'{name} [{shorthash}]', shortname
+            if shorthash is not None:
+                return f'{name} [{shorthash}]', shortname
+            return name
 
         models = []
         for filename in model_list:
+            config = filename.rsplit(".", 1)[0] + ".py"
+            name = modeltitle(filename)
+            # check if config.py file exists or not
+            if (filename.startswith("bbox/") or filename.startswith("segm/")) and not os.path.exists(config):
+                continue
+
             if filename not in models_list:
                 h = model_hash(filename)
                 if "bbox" in filename or "segm" in filename:
