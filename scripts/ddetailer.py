@@ -14,9 +14,11 @@ from pathlib import Path
 
 from scripts.mediapipe import mediapipe_detector_face as mp_detector_face
 from scripts.mediapipe import mediapipe_detector_facemesh as mp_detector_facemesh
+from scripts.ultralytics import ultralytics_inference as ultra_inference
 
 from copy import copy, deepcopy
 from modules import processing, images
+from modules import safe
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
 from modules.call_queue import wrap_gradio_gpu_call
 from modules.generation_parameters_copypaste import ParamBinding, register_paste_params_button
@@ -28,19 +30,23 @@ from modules.ui import create_refresh_button, plaintext_to_html
 from basicsr.utils.download_util import load_file_from_url
 
 dd_models_path = os.path.join(models_path, "mmdet")
+dd_yolo_path = os.path.join(models_path, "yolo")
 
 scriptdir = scripts.basedir()
 
 models_list = {}
 models_alias = {}
-def list_models(model_path, real=True):
-        model_list = modelloader.load_models(model_path=model_path, ext_filter=[".pth"])
+def list_models(real=True):
+        model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
+        model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
 
         def modeltitle(path, shorthash):
             abspath = os.path.abspath(path)
 
-            if abspath.startswith(model_path):
-                name = abspath.replace(model_path, '')
+            if abspath.startswith(dd_models_path):
+                name = abspath.replace(dd_models_path, '')
+            elif abspath.startswith(dd_yolo_path):
+                name = abspath.replace(models_path, '')
             else:
                 name = os.path.basename(path)
 
@@ -57,11 +63,17 @@ def list_models(model_path, real=True):
         for filename in model_list:
             if filename not in models_list:
                 h = model_hash(filename)
-                mtime = os.path.getmtime(os.path.join(model_path, filename))
+                if "bbox" in filename or "segm" in filename:
+                    mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
+                else: # yolo
+                    mtime = os.path.getmtime(os.path.join(models_path, filename))
                 models_list[filename] = { "hash": h, "mtime": mtime }
             else:
                 h = models_list[filename]["hash"]
-                mtime = os.path.getmtime(os.path.join(model_path, filename))
+                if "bbox" in filename or "segm" in filename:
+                    mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
+                else: # yolo
+                    mtime = os.path.getmtime(os.path.join(models_path, filename))
                 old_mtime = models_list[filename]["mtime"]
                 if mtime > old_mtime:
                     # update hash, mtime
@@ -73,14 +85,16 @@ def list_models(model_path, real=True):
             models_alias[title] = filename
 
         def sortkey(name):
-            order = [ "face", "hand", "person"]
-            if all(cat not in name for cat in order):
-                return 100
-            for j, cat in enumerate(order):
-                if cat in name:
-                    return j
+            order2 = [ "bbox", "mediapipe", "yolo/", "segm" ]
+            order = [ "face", "hand", "person", "pose" ]
+            for j, cat2 in enumerate(order2):
+                if cat2 in name:
+                    for k, cat in enumerate(order):
+                        if cat in name:
+                            return j * 100  + k*10
+                    return j * 100 + 4*10
             # not reach
-            return 100
+            return 1000
 
         if real is False:
             models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
@@ -109,7 +123,7 @@ def startup():
 
     bbox_path = os.path.join(dd_models_path, "bbox")
     segm_path = os.path.join(dd_models_path, "segm")
-    list_model = list_models(dd_models_path)
+    list_model = list_models()
 
     required = [
         (bbox_path, "mmdet_anime-face_yolov3.pth"),
@@ -368,6 +382,34 @@ class MuDetectionDetailerScript(scripts.Script):
         if modelname == "None" or "mediapipe_" in modelname:
             return gr.update(visible=False, choices=[], value=[])
 
+        if "yolo/" in modelname:
+            from ultralytics import YOLO
+
+            model_path = modelpath(modelname)
+
+            # given text class names
+            classes_path = model_path.rsplit(".", 1)[0] + ".json"
+            _classes = None
+            if os.path.exists(classes_path):
+                with open(classes_path) as f:
+                    _classes = json.load(f)
+            else:
+                safe_torch_load = torch.load
+                try:
+                    torch.load = safe.unsafe_torch_load
+                    model = YOLO(model_path)
+                finally:
+                    torch.load = safe_torch_load
+
+                if model.names is not None:
+                    _classes = list(model.names.values())
+
+            if _classes is not None:
+                default = [_classes[0]] if _classes[0].lower() in ["person", "face", "hand", "human"] else []
+                return gr.update(visible=True, choices=["None"] + _classes, value=default)
+
+            return gr.update(visible=False, choices=[], value=[])
+
         dataset = modeldataset(modelname)
         if dataset == "coco":
             path = modelpath(modelname)
@@ -399,7 +441,7 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Row():
                 enabled = gr.Checkbox(label="Enable", value=False, visible=True, elem_classes=["mudd-enabled"])
 
-            model_list = list_models(dd_models_path, False)
+            model_list = list_models(False)
             default_model = match_modelname("face_yolov8n.pth")
             if is_img2img:
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
@@ -409,7 +451,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 with gr.Tab("Primary"):
                     with gr.Row():
                         dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=default_model, visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(dd_models_path, False) + ["None"]},"mudd_refresh_model_a")
+                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(False) + ["None"]},"mudd_refresh_model_a")
                         dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
@@ -468,7 +510,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 with gr.Tab("Secondary"):
                     with gr.Row():
                         dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=True, type="value")
-                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(dd_models_path, False)},"mudd_refresh_model_b")
+                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(False)},"mudd_refresh_model_b")
                         dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
                     with gr.Row():
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
@@ -1898,7 +1940,7 @@ def modeldataset(model_shortname):
     return dataset
 
 def match_modelname(modelname):
-    model_list = list_models(dd_models_path)
+    model_list = list_models()
 
     if modelname.find("[") == -1:
         for model in model_list:
@@ -2155,7 +2197,7 @@ except ImportError:
 
 def check_validity():
     """check validity of model + config settings"""
-    model_list = list_models(dd_models_path)
+    model_list = list_models()
     print(f" Total \033[92m{len(model_list)}\033[0m mmdet models and \033[92m{3}\033[0m mediapipe models.")
     check = shared.opts.data.get("mudd_check_validity", True)
     if not check:
@@ -2233,6 +2275,10 @@ def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100
         results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes, max_per_img)
     elif ( "mmdet" in path and "segm" in path):
         results = inference_mmdet_segm(image, modelname, conf_thres, label, classes, max_per_img)
+    elif "yolo/" in path or "yolo\\" in path:
+        results = ultra_inference(image, path, conf_thres, label, classes, max_per_img, device=get_device())
+    else:
+        return [[], [], [], []]
     return results
 
 def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_per_img):
@@ -2440,7 +2486,7 @@ def on_infotext_pasted(infotext, results):
         "person_yolov8n-seg.pt": "mmdet_dd-person_mask2former.pth",
         "person_yolov8s-seg.pt": "mmdet_dd-person_mask2former.pth",
     }
-    list_model = list_models(dd_models_path)
+    list_model = list_models()
     for k, v in results.items():
         if import_adetailer and k.startswith("ADetailer"):
             key = k
@@ -2525,7 +2571,7 @@ def muddetailer_api(_: gr.Blocks, app: FastAPI):
 
     @app.get("/muddetailer/model_list")
     async def model_list(update: bool = True):
-        list_model = list_models(dd_models_path)
+        list_model = list_models()
         return {"model_list": list_model}
 
 script_callbacks.on_ui_settings(on_ui_settings)
