@@ -1386,7 +1386,10 @@ class MuDetectionDetailerScript(scripts.Script):
             shared.total_tqdm.updateTotal(0)
 
         # init random
-        np.random.seed(p_txt.seed)
+        rand_seed = p_txt.seed
+        while rand_seed > 2**32 - 1:
+            rand_seed >>= 1
+        np.random.seed(rand_seed)
 
         detected_a = {}
         detected_b = {}
