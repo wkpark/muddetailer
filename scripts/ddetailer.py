@@ -1216,10 +1216,21 @@ class MuDetectionDetailerScript(scripts.Script):
         if getattr(p, "_disable_muddetailer", False):
             return
 
+        final_count = len(processed.images)
+        # fix grid infotext
+        if (opts.return_grid or opts.grid_save) and not p.do_not_save_grid and (p.n_iter > 1 or p.batch_size > 1) and final_count > 1:
+            p_txt = copy(p)
+            # remove detection infos from the grid image
+            p_txt.extra_generation_params.pop("MuDDetailer detection a", None)
+            p_txt.extra_generation_params.pop("MuDDetailer detection b", None)
+            info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
+            # replace infotext
+            processed.infotexts[0] = info
+            processed.images[0].info["parameters"] = info
+
         if len(self._image_masks) == 0:
             return
 
-        final_count = len(processed.images)
         grid_image = None
         if (opts.return_grid or opts.grid_save) and not p.do_not_save_grid and (p.n_iter > 1 or p.batch_size > 1) and final_count > 1:
             # recheck size of the grid image
