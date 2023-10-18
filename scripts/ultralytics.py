@@ -27,17 +27,16 @@ def ultralytics_inference(image, model_path, conf_thres, label, classes=None, ma
         with open(classes_path) as f:
             _classes = json.load(f)
 
-    if classes is not None and _classes is not None:
-        classes = list(classes)
-        classes = [_classes.index(cls) for cls in classes if cls in _classes]
-    elif classes is not None:
+    if classes is not None:
+        if classes is str:
+            classes = [classes]
+        if _classes is None and model.names is not None:
+            _classes = list(model.names.values())
+
         if len(classes) == 0:
             classes = None
-        elif model.names is not None:
-            _classes = list(model.names.values())
-            classes = [_classes.index(cls) for cls in classes if cls in _classes]
         else:
-            classes = None
+            classes = [_classes.index(cls) for cls in classes if cls in _classes]
 
     result = model(image, conf=conf_thres, device=device, max_det=max_per_img, classes=classes)[0]
 
