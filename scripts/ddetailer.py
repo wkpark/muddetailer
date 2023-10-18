@@ -636,21 +636,25 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Group(visible=True) as select_group_a:
                             with gr.Row():
-                                labels_a = gr.Dropdown(label="Detected masks", choices=[], values=[], multiselect=True, interactive=True)
+                                labels_a = gr.Dropdown(label="Detected masks", choices=[], values=[], multiselect=True, interactive=True, elem_id="mudd_labels_a_" + tabname)
                             with gr.Row():
                                 select_options_a = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
                                 masks_a = gr.Textbox(label="Detected masks", value="", visible=False, elem_id="mudd_masks_a_" + tabname)
                                 # for {tabname}_gallery used by js
+                                labels_a_gallery = gr.Dropdown(label="Detected masks", choices=[], values=[],
+                                    visible=False, multiselect=True, interactive=True, elem_id="mudd_labels_a_gallery_" + tabname)
                                 masks_a_galley = gr.Textbox(label="Detected masks", value="", visible=False, elem_id="mudd_masks_a_gallery_" + tabname)
                                 # used by js
                                 masks_a_change = gr.Button(visible=False, elem_id="mudd_masks_a_change_" + tabname)
                         with gr.Group(visible=False) as select_group_b:
                             with gr.Row():
-                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True)
+                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True, elem_id="mudd_labels_b_" + tabname)
                             with gr.Row():
                                 select_options_b = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
                                 masks_b = gr.Textbox(label="Detected masks (B)", value="", visible=False, elem_id="mudd_masks_b_" + tabname)
                                 # for {tabname}_gallery used by js
+                                labels_b_gallery = gr.Dropdown(label="Detected masks (B)", choices=[], values=[],
+                                    visible=False, multiselect=True, interactive=True, elem_id="mudd_labels_b_gallery_" + tabname)
                                 masks_b_galley = gr.Textbox(label="Detected masks", value="", visible=False, elem_id="mudd_masks_b_gallery_" + tabname)
                                 # used by js
                                 masks_b_change = gr.Button(visible=False, elem_id="mudd_masks_b_change_" + tabname)
@@ -756,6 +760,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     )
                     masks_a.change(**masks_a_args);
                     masks_a_args["_js"] = "gallery_get_masks"
+                    masks_a_args["outputs"] = [labels_a_gallery]
                     masks_a_change.click(**masks_a_args);
 
                     masks_b_args = dict(
@@ -767,6 +772,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     )
                     masks_b.change(**masks_b_args);
                     masks_b_args["_js"] = "gallery_get_masks"
+                    masks_b_args["outputs"] = [labels_b_gallery]
                     masks_b_change.click(**masks_b_args);
 
                     labels_args = dict(
@@ -792,6 +798,27 @@ class MuDetectionDetailerScript(scripts.Script):
                     labels_b.change(**labels_args)
                     labels_args.pop("_js")
                     select_options_b.change(**labels_args)
+
+                    # for gallery
+                    labels_args = dict(
+                        _js="overlay_masks",
+                        fn=lambda *a: None,
+                        inputs=[labels_a_gallery, dummy_label_a, dummy_true if is_img2img else dummy_false],
+                        outputs=[],
+                        show_progress=False,
+                    )
+                    labels_a_gallery.select(**labels_args)
+                    labels_a_gallery.change(**labels_args)
+
+                    labels_args = dict(
+                        _js="overlay_masks",
+                        fn=lambda *a: None,
+                        inputs=[labels_b_gallery, dummy_label_b, dummy_true if is_img2img else dummy_false],
+                        outputs=[],
+                        show_progress=False,
+                    )
+                    labels_b_gallery.select(**labels_args)
+                    labels_b_gallery.change(**labels_args)
 
                     dummy_component = gr.Label(visible=False)
 
@@ -2162,6 +2189,7 @@ def on_ui_settings():
     shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of model configs on startup", section=section))
     shared.opts.add_option("mudd_check_model_validity", shared.OptionInfo(False, "Check validity of models on startup", section=section))
     shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
+    shared.opts.add_option("mudd_use_gallery_detection_preview", shared.OptionInfo(False, "Use preview of detections in gallery", section=section))
 
 
 def _create_segms(gray, bboxes):
