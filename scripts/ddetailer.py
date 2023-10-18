@@ -264,6 +264,7 @@ def ddetailer_extra_params(
     dd_prompt_2, dd_neg_prompt_2,
     dd_mask_blur, dd_denoising_strength,
     dd_inpaint_full_res, dd_inpaint_full_res_padding,
+    dd_inpaint_width, dd_inpaint_height,
     dd_cfg_scale, dd_steps, dd_noise_multiplier,
     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
 ):
@@ -284,6 +285,8 @@ def ddetailer_extra_params(
         "MuDDetailer denoising": dd_denoising_strength,
         "MuDDetailer inpaint full": dd_inpaint_full_res,
         "MuDDetailer inpaint padding": dd_inpaint_full_res_padding,
+        "MuDDetailer inpaint width": dd_inpaint_width,
+        "MuDDetailer inpaint height": dd_inpaint_height,
         # DDtailer extension
         "MuDDetailer CFG scale": dd_cfg_scale,
         "MuDDetailer steps": dd_steps,
@@ -578,6 +581,14 @@ class MuDetectionDetailerScript(scripts.Script):
                     with gr.Column(variant="compact"):
                         dd_inpaint_full_res = gr.Checkbox(label='Inpaint mask only', value=True, min_width=140)
                         dd_inpaint_full_res_padding = gr.Slider(label='Inpaint only masked padding, pixels', minimum=0, maximum=256, step=4, value=32, min_width=140)
+                    with gr.Column(variant="compact"):
+                        with gr.Row():
+                            gr.HTML("<p>Inpaint width, height: ('0' means use the same setting)</p>")
+                        with gr.Row():
+                            dd_inpaint_width = gr.Slider(label='Inpaint width', minimum=0, maximum=2048, step=32, value=0, min_width=140)
+                            dd_inpaint_height = gr.Slider(label='Inpaint height', minimum=0, maximum=2048, step=32, value=0, min_width=140)
+                        with gr.Row():
+                            inpaint_size_preset = gr.Radio(label="Inpaint w x h presets", choices=["default", "512x512", "640x640", "768x768", "1024x1024"], value="default")
                     with gr.Group(visible=False) as model_b_options_2:
                         with gr.Row():
                             dd_preprocess_b = gr.Checkbox(label='Inpaint B detections before inpainting A')
@@ -585,6 +596,22 @@ class MuDetectionDetailerScript(scripts.Script):
                     with gr.Group(visible=False) as operation:
                         with gr.Row():
                             dd_bitwise_op = gr.Radio(label='Bitwise Mask operation', info="Mask operation A and B", choices=['None', 'A&B', 'A-B'], value="None")
+
+                    def inpaint_preset(preset):
+                        if "x" in preset:
+                            w, h = preset.split("x")
+                            w, h = int(w), int(h)
+                            return w, h
+                        if preset == "default":
+                            return 0, 0
+                        return gr.update(), gr.update()
+
+                    inpaint_size_preset.change(
+                        fn=inpaint_preset,
+                        inputs=[inpaint_size_preset],
+                        outputs=[dd_inpaint_width, dd_inpaint_height],
+                        show_progress=False,
+                    )
 
                 with gr.Accordion("Advanced options", open=False) as advanced:
                     gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
@@ -862,6 +889,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_denoising_strength, "MuDDetailer denoising"),
                 (dd_inpaint_full_res, "MuDDetailer inpaint full"),
                 (dd_inpaint_full_res_padding, "MuDDetailer inpaint padding"),
+                (dd_inpaint_width, "MuDDetailer inpaint width"),
+                (dd_inpaint_height, "MuDDetailer inpaint height"),
                 (dd_cfg_scale, "MuDDetailer CFG scale"),
                 (dd_steps, "MuDDetailer steps"),
                 (dd_noise_multiplier, "MuDDetailer noise multiplier"),
@@ -982,6 +1011,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_prompt_2, dd_neg_prompt_2,
                     dd_mask_blur, dd_denoising_strength,
                     dd_inpaint_full_res, dd_inpaint_full_res_padding,
+                    dd_inpaint_width, dd_inpaint_height,
                     dd_cfg_scale, dd_steps, dd_noise_multiplier,
                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
         ]
@@ -1361,6 +1391,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
+                     dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip):
 
@@ -1434,6 +1465,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_prompt_2, dd_neg_prompt_2,
             dd_mask_blur, dd_denoising_strength,
             dd_inpaint_full_res, dd_inpaint_full_res_padding,
+            dd_inpaint_width, dd_inpaint_height,
             dd_cfg_scale, dd_steps, dd_noise_multiplier,
             dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
         )
@@ -1442,6 +1474,9 @@ class MuDetectionDetailerScript(scripts.Script):
         cfg_scale = dd_cfg_scale if dd_cfg_scale > 0 else p_txt.cfg_scale
         steps = dd_steps if dd_steps > 0 else p_txt.steps
         initial_noise_multiplier = dd_noise_multiplier if dd_noise_multiplier > 0 else None
+
+        inpaint_width = dd_inpaint_width if dd_inpaint_width > 0 else p_txt.width
+        inpaint_height  = dd_inpaint_height if dd_inpaint_height > 0 else p_txt.height
 
         p = StableDiffusionProcessingImg2Img(
                 init_images = [pp.image],
@@ -1470,8 +1505,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 n_iter=1,
                 steps=steps,
                 cfg_scale=cfg_scale,
-                width=p_txt.width,
-                height=p_txt.height,
+                width=inpaint_width,
+                height=inpaint_height,
                 tiling=p_txt.tiling,
                 extra_generation_params=p_txt.extra_generation_params,
                 override_settings=override_settings,
@@ -1741,6 +1776,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
+                     dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip) = (*_args,)
         else:
@@ -1781,6 +1817,8 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_denoising_strength = args.get("denoising strength", 0.4)
             dd_inpaint_full_res = args.get("inpaint full", True)
             dd_inpaint_full_res_padding = args.get("inpaint full padding", 32)
+            dd_inpaint_width = args.get("inpaint width", 0)
+            dd_inpaint_height = args.get("inpaint height", 0)
             dd_cfg_scale = args.get("CFG scale", 0)
             dd_steps = args.get("steps", 0)
             dd_noise_multiplier = args.get("noise multiplier", 0)
@@ -1837,6 +1875,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_prompt_2, dd_neg_prompt_2,
                      dd_mask_blur, dd_denoising_strength,
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
+                     dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip)
 
