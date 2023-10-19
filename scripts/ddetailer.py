@@ -1691,6 +1691,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         processed.masks_a = detected_a
         processed.masks_b = detected_b
+        processed.infotexts[0] = info
 
         # append masks if needed case
         if getattr(self, "_image_masks", None) is not None:
