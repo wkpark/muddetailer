@@ -2,7 +2,7 @@ import os
 import re
 import sys
 import cv2
-from PIL import Image
+from PIL import Image, ImageColor
 import math
 import numpy as np
 import gradio as gr
@@ -449,6 +449,7 @@ class MuDetectionDetailerScript(scripts.Script):
             return gr.update(visible=False, choices=[], value=[])
 
     def ui(self, is_img2img):
+        DD = MuDetectionDetailerScript
 
         with gr.Accordion("µ Detection Detailer", open=False, elem_id="mudd_main_" + ("txt2img" if not is_img2img else "img2img")):
             with gr.Row():
@@ -654,6 +655,46 @@ class MuDetectionDetailerScript(scripts.Script):
                             outputs=[advanced_reset, dd_noise_multiplier, dd_cfg_scale, dd_sampler, dd_steps, dd_checkpoint, dd_vae, dd_clipskip],
                             show_progress=False,
                         )
+
+                with gr.Accordion("NSFW censor options", open=False) as tools:
+                    gr.HTML(value="<p>Select NSFW censor options. You have to setup <a href='https://github.com/padmalcom/nsfwrecog/tree/nsfwrecog_v1'>nsfwrecog_v1</a> or other similar model.</p>")
+                    with gr.Row():
+                        censor_after = gr.Checkbox(label="NSFW censor After inpaint", value=False)
+                    with gr.Group(), gr.Tabs():
+                        with gr.Tab("Blur"):
+                            with gr.Column(variant="compact"):
+                                with gr.Row():
+                                    use_blur = gr.Checkbox(label="Enable Blur", value=False)
+                                with gr.Row():
+                                    blur_size = gr.Slider(label='Gaussian blur sigma', minimum=1, maximum=50, step=1, value=5, min_width=200)
+                        with gr.Tab("Mosaic"):
+                            with gr.Column(variant="compact"):
+                                with gr.Row():
+                                    use_mosaic = gr.Checkbox(label="Enable Mosaic", value=False)
+                                with gr.Row():
+                                    mosaic_size = gr.Slider(label='Mosic Size (in pixels)', minimum=10, maximum=200, step=1, value=20, min_width=200)
+                        with gr.Tab("Black"):
+                            with gr.Column(variant="compact"):
+                                with gr.Row():
+                                    use_black = gr.Checkbox(label="Enable Black", value=False)
+                                with gr.Row():
+                                    custom_color = gr.ColorPicker(label="Color", show_label=False)
+
+                        dd_states = gr.State({})
+
+                    def censor_after_need_model_b(censor_after, model):
+                        message = ""
+                        if censor_after is True and model == "None":
+                            message = "Censor after inpainting needs a model B as a censor model."
+                            gr.Warning(message)
+                        return censor_after == True and model != "None"
+
+                    censor_after.select(
+                        fn=censor_after_need_model_b,
+                        inputs=[censor_after, dd_model_b],
+                        outputs=[censor_after],
+                        show_progress=False,
+                    )
 
                 with gr.Accordion("Inpainting Helper", open=False):
                     gr.HTML(value="<p>If you already have images in the gallery, you can click one of them to select and click the Inpaint button.</p>")
@@ -1021,6 +1062,34 @@ class MuDetectionDetailerScript(scripts.Script):
                 show_progress=False,
             )
 
+        def prepare_states(states, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
+            style = {}
+            if use_blur:
+                style = {"type": "blur", "size": blur_size}
+            elif use_mosaic:
+                style = {"type": "mosaic", "size": mosaic_size}
+            elif use_black:
+                style = {"type": "black", "color": custom_color}
+
+            if censor_after:
+                style["after"] = True
+
+            states["censored"] = style
+            shared.opts.data["mudd_states"] = states
+            return states
+
+        # prepare some extra stuff
+        generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
+        prepare_args = dict(
+            fn=prepare_states,
+            inputs=[dd_states, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
+            outputs=[dd_states],
+            show_progress=False,
+            queue=False,
+        )
+        dd_run_inpaint.click(**prepare_args)
+        generate_button.click(**prepare_args)
+
         all_args = [
                     use_prompt_edit,
                     use_prompt_edit_2,
@@ -1042,6 +1111,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_inpaint_width, dd_inpaint_height,
                     dd_cfg_scale, dd_steps, dd_noise_multiplier,
                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+                    dd_states,
         ]
         # 31 arguments
 
@@ -1143,6 +1213,8 @@ class MuDetectionDetailerScript(scripts.Script):
             info = prompt + "\nNegative prompt:" + neg_prompt + "\n" + generation_params
 
             images.save_image(outimage, outpath, "", seed, p.prompt, opts.samples_format, info=info, p=p)
+            if processed.censored_image is not None:
+                images.save_image(processed.censored_image, outpath, "", seed, p.prompt, opts.samples_format, info=info, p=p)
 
             shared.total_tqdm.clear()
 
@@ -1177,7 +1249,10 @@ class MuDetectionDetailerScript(scripts.Script):
                     gal.append((g[0]["name"], g[1]))
                 else:
                     gal.append(g["name"])
-            gal.append(outimage)
+            if processed.censored_image is not None:
+                gal.append(processed.censored_image)
+            else:
+                gal.append(outimage)
 
             # prepare outputs
             masks_a = processed.masks_a
@@ -1403,6 +1478,52 @@ class MuDetectionDetailerScript(scripts.Script):
             processed.infotexts = [grid_texts] + processed.infotexts
 
 
+    def make_censored(self, image, masks, results, params, selected=None):
+        # check censored style
+        use_censored = False
+        censor_type = params.get("type", None)
+
+        if len(masks) == 0:
+            return image
+
+        if selected:
+            gen_selected = [i for i in selected if i < len(masks) and i >= 0]
+        else:
+            gen_selected = range(len(masks))
+
+        censor_size = params.get("size", 10)
+
+        # prepare fill color
+        color = params.get("color", "#000")
+        color = ImageColor.getrgb(color)
+
+        cv2_image = np.array(image)
+        for i, r in enumerate(results[1]):
+            if not i in gen_selected:
+                continue
+
+            x1 = int(r[0])
+            y1 = int(r[1])
+            x2 = int(r[2])
+            y2 = int(r[3])
+            w = x2 - x1
+            h = y2 - y1
+
+            region = cv2_image[y1:y2, x1:x2]
+            if censor_type == "blur":
+                region = cv2.GaussianBlur(region, (0, 0), (censor_size if censor_size > 0 else 10))
+            elif censor_type == "mosaic":
+                rw = w // censor_size
+                rh = h // censor_size
+                region = cv2.resize(region, (rw, rh))
+                region = cv2.resize(region, (w, h), interpolation=cv2.INTER_AREA)
+            else:
+                region[:] = color
+            cv2_image[y1:y1+region.shape[0], x1:x1+region.shape[1]] = region
+
+        return Image.fromarray(cv2_image)
+
+
     def _postprocess_image(self, p, pp, use_prompt_edit, use_prompt_edit_2,
                      dd_model_a, dd_classes_a,
                      dd_conf_a, dd_max_per_img_a,
@@ -1421,7 +1542,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip):
+                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states):
 
         p._idx = getattr(p, "_idx", -1) + 1
         p._inpainting = getattr(p, "_inpainting", False)
@@ -1592,6 +1713,14 @@ class MuDetectionDetailerScript(scripts.Script):
                 detected = results[0][0] + f" {scores[0]}" + "," + ",".join([str(x) for x in bboxes[0]])
             return detected
 
+        # check censored style
+        use_censored = False
+        censor_params = dd_states.get("censored", None)
+        censor_type = censor_params.get("type", None)
+        censor_after = censor_params.get("after", None)
+        if censor_params and censor_type in ["blur", "mosaic", "black"]:
+            use_censored = True
+
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -1599,73 +1728,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
             output_images.append(init_image)
             masks_a = []
-            masks_b_pre = []
-
-            # Optional secondary pre-processing run
-            if (dd_model_b != "None" and dd_preprocess_b):
-                label_b_pre = "B"
-                results_b_pre = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b_pre, dd_classes_b, dd_max_per_img_b)
-                results_b_pre = sort_results(results_b_pre, dd_detect_order_b)
-
-                detected_b = info_results(results_b_pre)
-
-                detected = len(results_b_pre[1])
-                print(f"Total {detected} {'was' if detected == 1 else 'were'} detected with model {label_b_pre}...")
-
-                masks_b_pre = create_segmasks(gray_image, results_b_pre)
-                masks_b_pre = dilate_masks(masks_b_pre, dd_dilation_factor_b, 1)
-                masks_b_pre = offset_masks(masks_b_pre,dd_offset_x_b, dd_offset_y_b)
-                if (len(masks_b_pre) > 0):
-                    results_b_pre = update_result_masks(results_b_pre, masks_b_pre)
-                    segmask_preview_b = create_segmask_preview(results_b_pre, init_image, select_masks_b)
-                    shared.state.assign_current_image(segmask_preview_b)
-                    if ( opts.mudd_save_previews):
-                        images.save_image(segmask_preview_b, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-
-                    if select_masks_b:
-                        gen_selected = [i for i in select_masks_b if i < len(masks_b_pre) and i >= 0]
-                    else:
-                        gen_selected = range(len(masks_b_pre))
-                    state.job_count += len(gen_selected)
-
-                    selected = len(gen_selected)
-                    print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b_pre} for output generation {p_txt._idx + 1}.")
-
-                    p2 = copy(p)
-                    p2.seed = start_seed
-                    p2.init_images = [init_image]
-
-                    # prompt/negative_prompt for pre-processing
-                    p2.prompt = dd_prompt_2 if use_prompt_edit_2 and dd_prompt_2 else p_txt.prompt
-                    p2.negative_prompt = dd_neg_prompt_2 if use_prompt_edit_2 and dd_neg_prompt_2 else p_txt.negative_prompt
-
-                    # get img2img sampler steps and update total tqdm
-                    _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                    if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
-                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
-
-                    for i in gen_selected:
-                        p2.image_mask = masks_b_pre[i]
-                        if ( opts.mudd_save_masks):
-                            images.save_image(masks_b_pre[i], p_txt.outpath_samples, "", start_seed, p2.prompt, opts.samples_format, info=info, p=p2)
-                        processed = processing.process_images(p2)
-
-                        p2.seed = processed.seed + 1
-                        p2.subseed = processed.subseed + 1
-                        p2.init_images = processed.images
-
-                    if (len(gen_selected) > 0):
-                        output_images[n] = processed.images[0]
-                        init_image = processed.images[0]
-
-                else:
-                    print(f"No model B detection for output generation {p_txt._idx + 1} with current settings.")
+            masks_b = []
 
             # Primary run
             if (dd_model_a != "None"):
                 label_a = "A"
-                if (dd_model_b != "None" and dd_bitwise_op != "None"):
-                    label_a = dd_bitwise_op
                 results_a = inference(init_image, dd_model_a, dd_conf_a/100.0, label_a, dd_classes_a, dd_max_per_img_a)
                 results_a = sort_results(results_a, dd_detect_order_a)
 
@@ -1677,76 +1744,145 @@ class MuDetectionDetailerScript(scripts.Script):
                 masks_a = create_segmasks(gray_image, results_a)
                 masks_a = dilate_masks(masks_a, dd_dilation_factor_a, 1)
                 masks_a = offset_masks(masks_a,dd_offset_x_a, dd_offset_y_a)
-                if (dd_model_b != "None" and dd_bitwise_op != "None"):
-                    label_b = "B"
-                    results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
-                    results_b = sort_results(results_b, dd_detect_order_b)
 
-                    detected_b = info_results(results_b)
-
-                    detected = len(results_b[1])
-                    print(f"Total {detected} {'was' if detected == 1 else 'were'} detected by model {label_b}...")
-
-                    masks_b = create_segmasks(gray_image, results_b)
-                    masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
-                    masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
-                    if (len(masks_b) > 0):
-                        combined_mask_b = combine_masks(masks_b)
-                        for i in reversed(range(len(masks_a))):
-                            if (dd_bitwise_op == "A&B"):
-                                masks_a[i] = bitwise_and_masks(masks_a[i], combined_mask_b)
-                            elif (dd_bitwise_op == "A-B"):
-                                masks_a[i] = subtract_masks(masks_a[i], combined_mask_b)
-                            if (is_allblack(masks_a[i])):
-                                del masks_a[i]
-                                for result in results_a:
-                                    del result[i]
-
-                    else:
-                        print("No model B detection to overlap with model A masks")
-                        results_a = []
-                        masks_a = []
-
-                if (len(masks_a) > 0):
-                    results_a = update_result_masks(results_a, masks_a)
-                    segmask_preview_a = create_segmask_preview(results_a, init_image, select_masks_a)
-                    shared.state.assign_current_image(segmask_preview_a)
-                    if ( opts.mudd_save_previews):
-                        images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-
-                    if select_masks_a:
-                        gen_selected = [i for i in select_masks_a if i < len(masks_a) and i >= 0]
-                    else:
-                        gen_selected = range(len(masks_a))
-
-                    state.job_count += len(gen_selected)
-
-                    selected = len(gen_selected)
-                    print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_a} for output generation {p_txt._idx + 1}.")
-
-                    p.seed = start_seed
-                    p.init_images = [init_image]
-
-                    # get img2img sampler steps and update total tqdm
-                    _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                    if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
-                        shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
-
-                    for i in gen_selected:
-                        p.image_mask = masks_a[i]
-                        if ( opts.mudd_save_masks):
-                            images.save_image(masks_a[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
-
-                        processed = processing.process_images(p)
-                        p.seed = processed.seed + 1
-                        p.subseed = processed.subseed + 1
-                        p.init_images = processed.images
-
-                    if len(gen_selected) > 0 and len(processed.images) > 0:
-                        output_images[n] = processed.images[0]
-
-                else:
+                if len(masks_a) == 0:
                     print(f"No model {label_a} detections for output generation {p_txt._idx + 1} with current settings.")
+
+            # Secondary run
+            if (dd_model_b != "None"):
+                label_b = "B"
+                results_b = inference(init_image, dd_model_b, dd_conf_b/100.0, label_b, dd_classes_b, dd_max_per_img_b)
+                results_b = sort_results(results_b, dd_detect_order_b)
+
+                detected_b = info_results(results_b)
+
+                detected = len(results_b[1])
+                print(f"Total {detected} {'was' if detected == 1 else 'were'} detected by model {label_b}...")
+
+                masks_b = create_segmasks(gray_image, results_b)
+                masks_b = dilate_masks(masks_b, dd_dilation_factor_b, 1)
+                masks_b = offset_masks(masks_b,dd_offset_x_b, dd_offset_y_b)
+
+                if len(masks_b) == 0:
+                    print(f"No model {label_b} detection for output generation {p_txt._idx + 1} with current settings.")
+
+            if len(masks_a) > 0 and len(masks_b) > 0:
+                masks_ab = [None]*len(masks_a)
+                results_ab = [None]*len(results_a)
+
+            # Optional secondary pre-processing run
+            if len(masks_b) > 0 and dd_preprocess_b:
+                results_b = update_result_masks(results_b, masks_b)
+                segmask_preview_b = create_segmask_preview(results_b, init_image, select_masks_b)
+                shared.state.assign_current_image(segmask_preview_b)
+                if ( opts.mudd_save_previews):
+                    images.save_image(segmask_preview_b, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+
+                if select_masks_b:
+                    gen_selected = [i for i in select_masks_b if i < len(masks_b) and i >= 0]
+                else:
+                    gen_selected = range(len(masks_b))
+                state.job_count += len(gen_selected)
+
+                selected = len(gen_selected)
+                print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b} for output generation {p_txt._idx + 1}.")
+
+                p2 = copy(p)
+                p2.seed = start_seed
+                p2.init_images = [init_image]
+
+                # prompt/negative_prompt for pre-processing
+                p2.prompt = dd_prompt_2 if use_prompt_edit_2 and dd_prompt_2 else p_txt.prompt
+                p2.negative_prompt = dd_neg_prompt_2 if use_prompt_edit_2 and dd_neg_prompt_2 else p_txt.negative_prompt
+
+                # get img2img sampler steps and update total tqdm
+                _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
+                if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                    shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
+
+                for i in gen_selected:
+                    p2.image_mask = masks_b[i]
+                    if ( opts.mudd_save_masks):
+                        images.save_image(masks_b[i], p_txt.outpath_samples, "", start_seed, p2.prompt, opts.samples_format, info=info, p=p2)
+                    processed = processing.process_images(p2)
+
+                    p2.seed = processed.seed + 1
+                    p2.subseed = processed.subseed + 1
+                    p2.init_images = processed.images
+
+                if (len(gen_selected) > 0):
+                    output_images[n] = processed.images[0]
+                    init_image = processed.images[0]
+
+
+            if dd_model_a != "None" and len(masks_a) > 0 and dd_model_b != "None" and dd_bitwise_op != "None":
+                label_ab = dd_bitwise_op
+
+                if len(masks_b) > 0:
+                    combined_mask_b = combine_masks(masks_b)
+                    for i in reversed(range(len(masks_a))):
+                        if (dd_bitwise_op == "A&B"):
+                            masks_ab[i] = bitwise_and_masks(masks_a[i], combined_mask_b)
+                        elif (dd_bitwise_op == "A-B"):
+                            masks_ab[i] = subtract_masks(masks_a[i], combined_mask_b)
+                        if (is_allblack(masks_ab[i])):
+                            masks_ab[i] = None
+                else:
+                    print("No model B detection to overlap with model A masks")
+                    results_ab = []
+                    masks_ab = []
+
+            # make censored image
+            censored_image = None
+            if len(masks_a) > 0 and use_censored and not censor_after:
+                censored_image = self.make_censored(init_image, masks_a, results_a, censor_params, select_masks_a)
+
+            elif (dd_bitwise_op != "None" and len(masks_ab) > 0) or (dd_bitwise_op == "None" and len(masks_a) > 0):
+                masks = masks_a if dd_bitwise_op == "None" else masks_ab
+                label = label_a if dd_bitwise_op == "None" else label_ab
+                results = update_result_masks(results_a, masks)
+                segmask_preview = create_segmask_preview(results, init_image, select_masks_a)
+                shared.state.assign_current_image(segmask_preview)
+                if ( opts.mudd_save_previews):
+                    images.save_image(segmask_preview, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+
+                if select_masks_a:
+                    gen_selected = [i for i in select_masks_a if i < len(masks) and i >= 0]
+                else:
+                    gen_selected = range(len(masks))
+
+                state.job_count += len(gen_selected)
+
+                selected = len(gen_selected)
+                print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label} for output generation {p_txt._idx + 1}.")
+
+                p.seed = start_seed
+                p.init_images = [init_image]
+
+                # get img2img sampler steps and update total tqdm
+                _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
+                if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                    shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
+
+                for i in gen_selected:
+                    if masks[i] is None:
+                        continue
+                    p.image_mask = masks[i]
+                    if ( opts.mudd_save_masks):
+                        images.save_image(masks[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+
+                    processed = processing.process_images(p)
+                    p.seed = processed.seed + 1
+                    p.subseed = processed.subseed + 1
+                    p.init_images = processed.images
+
+                if len(gen_selected) > 0 and len(processed.images) > 0:
+                    output_images[n] = processed.images[0]
+
+                # make censored image
+                if use_censored and censor_after and len(masks_b) > 0 and len(processed.images) > 0:
+                    censored_image = self.make_censored(processed.images[0], masks_b, results_b, censor_params, select_masks_b)
+
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
 
         masks_params = {}
@@ -1762,6 +1898,7 @@ class MuDetectionDetailerScript(scripts.Script):
         processed.masks_a = detected_a
         processed.masks_b = detected_b
         processed.infotexts[0] = info
+        processed.censored_image = censored_image
 
         # append masks if needed case
         if getattr(self, "_image_masks", None) is not None:
@@ -1780,6 +1917,11 @@ class MuDetectionDetailerScript(scripts.Script):
             if segmask_preview_b is not None:
                 segmask_preview_b.info["parameters"] = info
                 self._image_masks[-1].append(segmask_preview_b)
+            if censored_image is not None:
+                self._image_masks[-1].append(censored_image)
+        elif censored_image is not None and getattr(self, "_image_masks", None) is not None:
+            censored_image.info["parameters"] = info
+            self._image_masks[-1].append(censored_image)
 
         return processed
 
@@ -1806,7 +1948,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip) = (*_args,)
+                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states) = (*_args,)
         else:
             # for API
             args = _args[0]
@@ -1854,6 +1996,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_checkpoint = args.get("checkpoint", "None")
             dd_vae = args.get("VAE", "None")
             dd_clipskip = args.get("CLIP skip", 0)
+            dd_states = args.get("options", {})
 
         # some check for API
         if dd_classes_a is str:
@@ -1905,7 +2048,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip)
+                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states)
 
         p.close()
 
@@ -2124,6 +2267,8 @@ def sort_results(results, orders):
 def update_result_masks(results, masks):
     boolmasks = []
     for i in range(len(masks)):
+        if masks[i] is None:
+            continue
         boolmasks.append(np.array(masks[i], dtype=bool))
     results[2] = boolmasks
     return results
