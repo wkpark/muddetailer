@@ -7,7 +7,9 @@ import math
 import numpy as np
 import gradio as gr
 import json
+import requests
 import shutil
+from tqdm import tqdm
 import torch
 from fastapi import FastAPI
 from pathlib import Path
@@ -806,6 +808,74 @@ class MuDetectionDetailerScript(scripts.Script):
                     select_options_b.change(**labels_args)
 
                     dummy_component = gr.Label(visible=False)
+
+                with gr.Accordion("Model Download Helper", open=False):
+                    optional_models = [
+                        (dd_yolo_path, "https://github.com/padmalcom/nsfwrecog/releases/download/nsfwrecog_v1/nsfwrecog_v1.onnx",
+                            "nsfwrecog_v1.onnx", "https://github.com/padmalcom/nsfwrecog/blob/nsfwrecog_v1/LICENSE", "APL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8n.pt",
+                            "face_yolov8n.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8s.pt",
+                            "face_yolov8s.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/hand_yolov8n.pt",
+                            "hand_yolov8n.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/hand_yolov8s.pt",
+                            "hand_yolov8s.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/person_yolov8n-seg.pt",
+                            "person_yolov8n-seg.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                        (dd_yolo_path, "https://huggingface.co/Bingsu/adetailer/resolve/main/person_yolov8s-seg.pt",
+                            "person_yolov8s-seg.pt", "https://huggingface.co/Bingsu/adetailer/raw/main/README.md", "AGPL"),
+                    ]
+                    with gr.Row():
+                        download_status = gr.Textbox(visible=True, label="message")
+
+                    def downloader(modelurl, destdir, filename, progress=gr.Progress(track_tqdm=True)):
+                        if not os.path.exists(destdir):
+                            os.mkdir(destdir)
+
+                        fname = os.path.join(destdir, filename)
+                        resp = requests.get(modelurl, stream=True)
+                        total = int(resp.headers.get('content-length', 0))
+                        try:
+                            with open(fname, 'wb') as file:
+                                bar = tqdm(desc=filename, total=total, unit='iB', unit_scale=True, unit_divisor=1024)
+                                bar.update(0)
+                                for data in resp.iter_content(chunk_size=1024):
+                                    size = file.write(data)
+                                    bar.update(size)
+                                bar.close()
+                        except:
+                            pass
+
+                        if os.path.exists(fname):
+                            downloaded = True
+                        else:
+                            downloaded = False
+
+                        return gr.update(value=downloaded), filename + " downloaded!"
+
+                    def download_ui(item):
+                        with gr.Row():
+                            if os.path.exists(os.path.join(item[0], item[2])):
+                                downloaded = True
+                            else:
+                                downloaded = False
+
+                            with gr.Column(scale=1, min_width=10):
+                                checkbox = gr.Checkbox(label="", show_label=False, value=downloaded, elem_classes=["downloaded"], container=False)
+                            with gr.Column(scale=10, min_width=160):
+                                downfile = gr.HTML(f"""<p>{item[2]}, License: <a href='{item[3]}'>{item[4]}</a></p>""")
+                            with gr.Column(scale=1, min_width=10):
+                                downbtn = gr.Button(' ', elem_classes=["download"])
+                            destdir = gr.Textbox(item[0], visible=False)
+                            modelurl = gr.Textbox(item[1], visible=False)
+                            filename = gr.Textbox(item[2], visible=False)
+
+                        downbtn.click(fn=downloader, inputs=[modelurl, destdir, filename], outputs=[checkbox, download_status])
+
+                    with gr.Column(variant="compact"):
+                        for j, item in enumerate(optional_models):
+                            download_ui(item)
 
             dd_model_a.change(
                 lambda modelname: {
