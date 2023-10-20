@@ -1,0 +1,33 @@
+.gradio-button.download:before {
+    content: ' ';
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24px' height='24px' viewBox='0 0 24 24' fill='black' stroke-width='2' stroke-linecap='square' stroke-linejoin='arcs'><path d='M4.97 11.03a.75.75 0 111.06-1.06L11 14.94V2.75a.75.75 0 011.5 0v12.19l4.97-4.97a.75.75 0 111.06 1.06l-6.25 6.25a.75.75 0 01-1.06 0l-6.25-6.25zm-.22 9.47a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H4.75z'/></svg>");
+
+    height: 20px;
+    width: 20px;
+    background-size: 20px 20px;
+}
+
+.dark .gradio-button.download:before {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24px' height='24px' viewBox='0 0 24 24' fill='white' stroke-width='2' stroke-linecap='square' stroke-linejoin='arcs'><path d='M4.97 11.03a.75.75 0 111.06-1.06L11 14.94V2.75a.75.75 0 011.5 0v12.19l4.97-4.97a.75.75 0 111.06 1.06l-6.25 6.25a.75.75 0 01-1.06 0l-6.25-6.25zm-.22 9.47a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H4.75z'/></svg>");
+}
+
+.gradio-button.download {
+    font-size: 20px;
+    font-family: var(--font-emoji);
+    padding: 0;
+    min-width: var(--text-xxl) !important;
+    max-width: var(--text-xxl);
+    background: none;
+
+    height: var(--text-xxl);
+    align-self: end;
+    border: 0;
+    display: contents;
+}
+
+.gradio-checkbox.downloaded {
+    min-width: 20px !important;
+    max-width: 24px;
+    appearance: checkbox;
+    margin: 0.2em;
+}
