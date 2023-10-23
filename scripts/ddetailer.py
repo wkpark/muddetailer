@@ -22,6 +22,7 @@ from copy import copy, deepcopy
 from modules import processing, images
 from modules import safe
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
+from modules import ui_common
 from modules.call_queue import wrap_gradio_gpu_call
 from modules.generation_parameters_copypaste import ParamBinding, register_paste_params_button
 from modules.processing import Processed, StableDiffusionProcessingImg2Img
@@ -269,6 +270,7 @@ def ddetailer_extra_params(
     dd_inpaint_width, dd_inpaint_height,
     dd_cfg_scale, dd_steps, dd_noise_multiplier,
     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+    dd_states,
 ):
     params = {
         "MuDDetailer use prompt edit": use_prompt_edit,
@@ -339,7 +341,208 @@ def ddetailer_extra_params(
     if dd_sampler in [ "Use same sampler", "Default", "None" ]:
         params.pop("MuDDetailer sampler")
 
+    # setup from dd_states
+    params_a = dd_states.get("inpaint a", None)
+    if params_a:
+        params_a = (tuple(setting.split(":", 1)) for setting in params_a)
+        params_a = dict((x, y.strip()) for x, y in params_a)
+        params["MuDDetailer inpaint a"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_a.items() if v is not None])
+
+    params_b = dd_states.get("inpaint b", None)
+    if params_b:
+        params_b = (tuple(setting.split(":", 1)) for setting in params_b)
+        params_b = dict((x, y.strip()) for x, y in params_b)
+        params["MuDDetailer inpaint b"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_b.items() if v is not None])
+
     return params
+
+
+def import_inpainting_options(mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding, inpaint_width, inpaint_height, sampler, steps, noise_multiplier, cfg_scale, checkpoint, vae, clipskip):
+    params = {
+        "Mask blur": mask_blur,
+        "Denoising": denoising_strength,
+        "Inpaint full": inpaint_full_res,
+        "Inpaint padding": inpaint_full_res_padding,
+    }
+
+    if inpaint_width > 0:
+        params["Inpaint width"] = inpaint_width
+    if inpaint_height > 0:
+        params["Inpaint height"] = inpaint_height
+    if sampler not in ["None", "Use same sampler"]:
+        params["Sampler"] = sampler
+    if steps > 0:
+        params["Steps"] = steps
+
+    if noise_multiplier > 0:
+        params["Noise multiplier"] = noise_multiplier
+    if cfg_scale > 0:
+        params["CFG scale"] = cfg_scale
+    if checkpoint not in ["None", "Use same checkpoint"]:
+        params["Checkpoint"] = checkpoint
+    if vae not in ["None", "Use same VAE"]:
+        params["VAE"] = vae
+    if clipskip > 0:
+        params["CLIP skip"] = clipskip
+
+    choices = [ f"{k}: {v}" for k, v in params.items()]
+    return gr.update(value=choices)
+
+
+def export_inpainting_options(choices):
+    defaults = {
+        "Mask blur": 4,
+        "Denoising": 0.4,
+        "Inpaint full": True,
+        "Inpaint padding": 32,
+        "Inpaint width": 0,
+        "Inpaint height": 0,
+        "Sampler": "Use same sampler",
+        "Steps": 0,
+        "Noise multiplier": 0,
+        "CFG scale": 0,
+        "Checkpoint": "Use same checkpoint",
+        "VAE": "Use same VAE",
+        "CLIP skip": 0,
+    }
+    choices_params = (tuple(choice.split(":", 1)) for choice in choices)
+    choices_params = dict((x, y.strip()) for x, y in choices_params)
+
+    outs = list(defaults.values())
+    for i, k in enumerate(defaults.keys()):
+        if k in choices_params:
+            outs[i] = choices_params[k]
+            if k in ["Mask blur", "Mask padding", "Inpaint width", "Inpaint height", "Steps", "CLIP skip"]:
+                outs[i] = int(outs[i])
+            elif k in ["Denoising", "CFG scale"]:
+                outs[i] = float(outs[i])
+            elif k in ["Inpaint full"]:
+                outs[i] = bool(outs[i])
+
+    return [gr.update(value=v) for v in outs]
+
+
+parsed_presets = {}
+def _load_presets():
+    raw = None
+    userfilepath = os.path.join(scriptdir, "data", "presets.tsv")
+    if os.path.isfile(userfilepath):
+        try:
+            with open(userfilepath) as f:
+                raw = f.read()
+        except OSError as e:
+            print(e)
+            pass
+    return raw
+
+
+def _dd_presets(raw=None):
+    if raw is None:
+        raw = _load_presets()
+        if raw is None:
+            return {}
+
+    lines = raw.splitlines()
+    presets = {}
+    for l in lines:
+        w = None
+        if "\t" in l:
+            k, w = l.split("\t", 1)
+        else:
+            continue
+
+        if w is not None:
+            k = k.strip()
+
+        # raw line
+        presets[k] = w
+
+    return presets
+
+
+def dd_presets(reload=False):
+    global parsed_presets
+    if reload or len(parsed_presets) == 0:
+        parsed_presets = _dd_presets()
+
+    return parsed_presets
+
+
+def find_preset_by_name(preset, presets=None, reload=False):
+    if presets is None:
+        presets = dd_presets(reload=reload)
+
+    if preset in presets:
+        return presets[preset]
+
+    return None
+
+
+def prepare_load_preset(params):
+    """set default preset params, type conversion"""
+
+    defaults = {
+        "Mask blur": 4,
+        "Denoising": 0.4,
+        "Inpaint full": True,
+        "Inpaint padding": 32,
+        "Inpaint width": 0,
+        "Inpaint height": 0,
+        "Sampler": "Use same sampler",
+        "Steps": 0,
+        "Noise multiplier": 0,
+        "CFG scale": 0,
+        "Checkpoint": "Use same checkpoint",
+        "VAE": "Use same VAE",
+        "CLIP skip": 0,
+        "Preprocess b": False,
+        "Use prompt edit": False,
+        "Use prompt edit 2": False,
+        "Conf a": 30,
+        "Conf b": 30,
+        "Dilation a": 4,
+        "Dilation b": 4,
+    }
+
+    outs = list(defaults.values())
+    for i, k in enumerate(defaults.keys()):
+        if k in params:
+            outs[i] = params[k]
+            if k in ["Mask blur", "Mask padding", "Inpaint width", "Inpaint height", "Steps", "CLIP skip",
+                    "Max detection a", "Max detection b", "Offset x a", "Offfset y a", "Offset x b", "Offset y b",
+                    "Inpaint padding", "Inpaint width", "Inpaint height"]:
+                outs[i] = int(outs[i])
+            elif k in ["Denoising", "CFG scale", "Conf a", "Conf b", "Dilation a", "Dilation b"]:
+                outs[i] = float(outs[i])
+            elif k in ["Inpaint full", "Use prompt edit", "Use prompt edit 2", "Preprocess b"]:
+                outs[i] = eval(outs[i]) if outs[i] in ["True", "False"] else False
+            elif k in ["Classes a", "Classes b", "Detect order a", "Detect order b"]:
+                outs[i] = [x.strip() for x in outs[i].split(",")]
+        params[k] = outs[i]
+
+    return params
+
+def _get_preset_params(preset_line):
+    global re_param
+
+    params = {}
+    for k, v in re_param.findall(preset_line):
+        try:
+            if v[0] == '"' and v[-1] == '"':
+                v = unquote(v)
+
+            params[k] = v
+        except Exception:
+            print(f"Error parsing \"{k}: {v}\"")
+            pass
+    return params
+
+
+def _get_preset_choices(preset_line):
+    params = _get_preset_params(preset_line)
+    choices = [ f"{k}: {v}" for k, v in params.items()]
+    return choices
+
 
 def dd_list_models():
     # save current checkpoint_info and call register() again to restore
@@ -450,6 +653,21 @@ class MuDetectionDetailerScript(scripts.Script):
 
     def ui(self, is_img2img):
         DD = MuDetectionDetailerScript
+        save_symbol = "\U0001f4be"  # 💾
+
+        with gr.Box(elem_id="mudd_preset_edit_dialog", elem_classes="popup-dialog") as preset_edit_dialog:
+            with gr.Row():
+                preset_edit_select = gr.Dropdown(label="Presets", elem_id="mudd_preset_edit_edit_select", choices=dd_presets().keys(), interactive=True, value="", allow_custom_value=True, info="Preset editing allow you to add custom presets.")
+                create_refresh_button(preset_edit_select, lambda: None , lambda: {"choices": list(dd_presets(True).keys())}, "mudd_refresh_presets")
+                preset_edit_read = gr.Button(value="↓", elem_classes=["tool"])
+            with gr.Row():
+                preset_edit_settings = gr.Dropdown(label="Settings", show_label=True, elem_id="mudd_preset_edit", multiselect=True)
+
+            with gr.Row():
+                preset_edit_overwrite = gr.Checkbox(label="Confirm or Overwrite", value=False, interactive=True, visible=False) # XXX checkbox is not working with dialog
+                preset_edit_save = gr.Button('Save', variant='primary', elem_id='mudd_preset_edit_save')
+                preset_edit_delete = gr.Button('Delete', variant='primary', elem_id='mudd_preset_edit_delete')
+                preset_edit_close = gr.Button('Close', variant='secondary', elem_id='mudd_preset_edit_close')
 
         with gr.Accordion("µ Detection Detailer", open=False, elem_id="mudd_main_" + ("txt2img" if not is_img2img else "img2img")):
             with gr.Row():
@@ -514,6 +732,19 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_detect_order_a = gr.CheckboxGroup(label="Detect order", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
                                 dd_select_masks_a = gr.Textbox(label='Select detections to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
+                            with gr.Row():
+                                dd_inpainting_options_a = gr.Dropdown(label='Override inpainting options', value=[], multiselect=True,
+                                    info="Override default inpainting options",
+                                    interactive=True)
+                                import_inpainting_a = gr.Button(value="↑", elem_classes=["tool", "import"])
+                                export_inpainting_a = gr.Button(value="↓", elem_classes=["tool", "export"])
+                                inpaint_reset_a = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
+
+                            inpaint_reset_a.click(
+                                fn=lambda: gr.update(value=[]),
+                                inputs=[],
+                                outputs=[dd_inpainting_options_a],
+                            )
 
                     dd_model_a.change(
                         fn=self.show_classes,
@@ -567,6 +798,20 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=140)
                             with gr.Row():
                                 dd_select_masks_b = gr.Textbox(label='Select detections to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
+                            with gr.Row():
+                                dd_inpainting_options_b = gr.Dropdown(label='Inpainting options (B)', value=[], multiselect=True,
+                                    info="Override default inpainting options",
+                                    interactive=True)
+                                import_inpainting_b = gr.Button(value="↑", elem_classes=["tool", "import"])
+                                export_inpainting_b = gr.Button(value="↓", elem_classes=["tool", "export"])
+                                inpaint_reset_b = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
+
+                            inpaint_reset_b.click(
+                                fn=lambda: gr.update(value=[]),
+                                inputs=[],
+                                outputs=[dd_inpainting_options_b],
+                            )
+
                     dd_model_b.change(
                         fn=self.show_classes,
                         inputs=[dd_model_b, dd_classes_b],
@@ -656,6 +901,39 @@ class MuDetectionDetailerScript(scripts.Script):
                             show_progress=False,
                         )
 
+                    all_inpainting_options = [dd_mask_blur, dd_denoising_strength, dd_inpaint_full_res, dd_inpaint_full_res_padding,
+                        dd_inpaint_width, dd_inpaint_height, dd_sampler, dd_steps, dd_noise_multiplier, dd_cfg_scale,
+                        dd_checkpoint, dd_vae, dd_clipskip]
+
+                    import_inpainting_a.click(
+                        fn=import_inpainting_options,
+                        inputs=[*all_inpainting_options],
+                        outputs=[dd_inpainting_options_a],
+                        show_progress=False,
+                    )
+
+                    export_inpainting_a.click(
+                        fn=export_inpainting_options,
+                        inputs=[dd_inpainting_options_a],
+                        outputs=[*all_inpainting_options],
+                        show_progress=False,
+                    )
+
+                    import_inpainting_b.click(
+                        fn=import_inpainting_options,
+                        inputs=[*all_inpainting_options],
+                        outputs=[dd_inpainting_options_b],
+                        show_progress=False,
+                    )
+
+                    export_inpainting_b.click(
+                        fn=export_inpainting_options,
+                        inputs=[dd_inpainting_options_b],
+                        outputs=[*all_inpainting_options],
+                        show_progress=False,
+                    )
+
+            with gr.Group() as extra_helpers:
                 with gr.Accordion("NSFW censor options", open=False) as tools:
                     gr.HTML(value="<p>Select NSFW censor options. You have to setup <a href='https://github.com/padmalcom/nsfwrecog/tree/nsfwrecog_v1'>nsfwrecog_v1</a> or other similar model.</p>")
                     with gr.Row():
@@ -918,6 +1196,16 @@ class MuDetectionDetailerScript(scripts.Script):
                         for j, item in enumerate(optional_models):
                             download_ui(item)
 
+                with gr.Accordion("Load/Save preset", open=False) as presets:
+                    with gr.Row():
+                        preset_select = gr.Dropdown(label='Select preset', value="None", choices=["None"] + list(dd_presets().keys()),
+                            interactive=True)
+                        create_refresh_button(preset_select, lambda: None , lambda: {"choices": list(dd_presets(True).keys())}, "mudd_refresh_presets")
+                        preset_save = gr.Button(value=save_symbol, elem_classes=["tool"])
+
+                    ui_common.setup_dialog(button_show=preset_save, dialog=preset_edit_dialog, button_close=preset_edit_close)
+                    # preset_save.click() will be redefined later
+
             dd_model_a.change(
                 lambda modelname: {
                     dd_model_b:gr_show( modelname != "None" ),
@@ -967,6 +1255,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_sampler, "MuDDetailer sampler"),
                 (dd_checkpoint, "MuDDetailer checkpoint"),
                 (dd_vae, "MuDDetailer VAE"),
+                (dd_inpainting_options_a, "MuDDetailer inpaint a"),
+                (dd_inpainting_options_b, "MuDDetailer inpaint b"),
                 (masks_a, "MuDDetailer detection a"),
                 (masks_b, "MuDDetailer detection b"),
             )
@@ -1062,7 +1352,112 @@ class MuDetectionDetailerScript(scripts.Script):
                 show_progress=False,
             )
 
-        def prepare_states(states, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
+
+        def _get_preset(use_prompt_edit, use_prompt_edit_2,
+                model_a, classes_a, conf_a, max_per_img_a, detect_order_a, select_masks_a, dilation_factor_a,
+                offset_x_a, offset_y_a,
+                prompt, neg_prompt,
+                preprocess_b, bitwise_op,
+                model_b, classes_b, conf_b, max_per_img_b, detect_order_b, select_masks_b, dilation_factor_b,
+                offset_x_b, offset_y_b,
+                prompt_2, neg_prompt_2,
+                mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding,
+                inpaint_width, inpaint_height, cfg_scale, steps, noise_multiplier,
+                sampler, checkpoint, vae, clipskip):
+
+            params = {
+                "Use prompt edit": use_prompt_edit,
+                "Use prompt edit b": use_prompt_edit_2,
+                "Prompt": prompt,
+                "Neg prompt": neg_prompt,
+                "Prompt b": prompt_2,
+                "Neg prompt b": neg_prompt_2,
+                "Model a": model_a,
+                "Conf a": conf_a,
+                "Max detection a": max_per_img_a,
+                "Offset x a": offset_x_a,
+                "Offset y a": offset_y_a,
+                "Dilation a": dilation_factor_a,
+            }
+
+            if classes_a is not None and len(classes_a) > 0:
+                params["Classes a"] = ",".join(classes_a)
+            if detect_order_a is not None and len(detect_order_a) > 0:
+                params["Detect order a"] = ",".join(detect_order_a)
+            if select_masks_a is not None and select_masks_a != "":
+                params["Select masks a"] = select_masks_a
+
+            if model_b != "None":
+                params["Model b"] = model_b
+                if dd_classes_b is not None and len(classes_b) > 0:
+                    params["Classes b"] = ",".join(classes_b)
+                if dd_detect_order_b is not None and len(detect_order_b) > 0:
+                    params["Detect order b"] = ",".join(detect_order_b)
+                if dd_select_masks_b is not None and select_masks_b != "":
+                    params["Select masks b"] = select_masks_b
+                params["Preprocess b"] = preprocess_b
+                params["Bitwise"] = bitwise_op
+                params["Conf b"] = conf_b
+                params["Max detection b"] = max_per_img_b
+                params["Dilation b"] = dilation_factor_b
+                params["Offset x b"] = offset_x_b
+                params["Offset y b"] = offset_y_b
+
+            # inpainting options
+            params.update({
+                "Mask blur": mask_blur,
+                "Denoising": denoising_strength,
+                "Inpaint full": inpaint_full_res,
+                "Inpaint padding": inpaint_full_res_padding,
+            })
+
+            if inpaint_width > 0:
+                params["Inpaint width"] = inpaint_width
+            if inpaint_height > 0:
+                params["Inpaint height"] = inpaint_height
+            if sampler not in ["None", "Use same sampler"]:
+                params["Sampler"] = sampler
+            if steps > 0:
+                params["Steps"] = steps
+
+            if noise_multiplier > 0:
+                params["Noise multiplier"] = noise_multiplier
+            if cfg_scale > 0:
+                params["CFG scale"] = cfg_scale
+            if checkpoint not in ["None", "Use same checkpoint"]:
+                params["Checkpoint"] = checkpoint
+            if vae not in ["None", "Use same VAE"]:
+                params["VAE"] = vae
+            if clipskip > 0:
+                params["CLIP skip"] = clipskip
+
+            if not prompt:
+                params.pop("Prompt")
+            if not neg_prompt:
+                params.pop("Neg prompt")
+            if not prompt_2:
+                params.pop("Prompt b")
+            if not neg_prompt_2:
+                params.pop("Neg prompt b")
+
+            return params
+
+
+        def prepare_save_preset(*_args):
+            params = _get_preset(*_args)
+            choices = [ f"{k}: {v}" for k, v in params.items()]
+            return gr.update(value=choices)
+
+
+        def _infotext_fields_components():
+            components = [component for component, _ in self.infotext_fields]
+            return components
+
+        def _infotext_fields_names():
+            components = [name.replace("MuDDetailer ", "").capitalize() for _, name in self.infotext_fields]
+            return components
+
+        def prepare_states(states, inpainting_options_a, inpainting_options_b, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
             style = {}
             if use_blur:
                 style = {"type": "blur", "size": blur_size}
@@ -1075,6 +1470,13 @@ class MuDetectionDetailerScript(scripts.Script):
                 style["after"] = True
 
             states["censored"] = style
+
+            # setup inpainting override options
+            if inpainting_options_a:
+                states["inpaint a"] = inpainting_options_a
+            if inpainting_options_b:
+                states["inpaint b"] = inpainting_options_b
+
             shared.opts.data["mudd_states"] = states
             return states
 
@@ -1082,7 +1484,7 @@ class MuDetectionDetailerScript(scripts.Script):
         generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
         prepare_args = dict(
             fn=prepare_states,
-            inputs=[dd_states, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
+            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
             outputs=[dd_states],
             show_progress=False,
             queue=False,
@@ -1114,6 +1516,167 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_states,
         ]
         # 31 arguments
+
+        def save_preset_settings(preset, settings, overwrite=False):
+            # check already have
+            preset = preset.replace("\t", " ").replace(",", "_")
+            if preset == "":
+                gr.Error("No preset name given")
+                return gr.update()
+
+            w = find_preset_by_name(preset)
+            if w is not None and not overwrite:
+                raise gr.Error("Preset exists. Please enable overwrite or rename it before save a new preset")
+
+            # from ["Mask blur: 4", ...] list to {"Mask blur": 4, ...} dict
+            params = (tuple(setting.split(":", 1)) for setting in settings)
+            params = dict((x, y.strip()) for x, y in params)
+            # make "Mask blur:4, Foo bar: ... " str
+            save_preset = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params.items() if v is not None])
+            save_preset = preset + "\t" + save_preset
+
+            filepath = os.path.join(scriptdir, "data", "presets.tsv")
+            if w is not None:
+                replaced = False
+                # replace preset entry
+                with open(filepath, "r+") as f:
+                    raw = f.read()
+
+                    lines = raw.splitlines()
+                    for i, l in enumerate(lines, start=1):
+                        if "\t" in l:
+                            k, ws = l.split("\t", 1)
+                        else:
+                            continue
+                        lines[i] = save_preset
+                        replaced = True
+                        break
+
+                    if replaced:
+                        f.seek(0)
+                        raw = "\n".join(lines) + "\n"
+                        f.write(raw)
+                        f.truncate()
+
+                if not replaced:
+                    raise gr.Error("Fail to save. Preset not found or mismatched")
+
+                gr.Info(f"Successfully preset saved {preset}")
+
+            else:
+                # append preset entry
+                try:
+                    with open(filepath, "a+") as f:
+                        f.write(save_preset + "\n")
+                except OSError as e:
+                    print(e)
+                    pass
+
+            # update dropdown
+            updated = list(dd_presets(True).keys())
+            return gr.update(choices=updated)
+
+        def delete_preset(preset, confirm=True):
+            preset = preset.replace("\t", " ").replace(",", "_")
+            if preset == "":
+                gr.Error("No preset name given")
+                return gr.update()
+
+            w = find_preset_by_name(preset)
+            if w is None:
+                raise gr.Error("Preset not exists")
+            if not confirm:
+                raise gr.Error("Please confirm before delete entry")
+
+            filepath = os.path.join(scriptdir, "data", "presets.tsv")
+            deleted = False
+            if os.path.isfile(filepath):
+                # search preset entry
+                with open(filepath, "r+") as f:
+                    raw = f.read()
+
+                    lines = raw.splitlines()
+                    newlines = []
+                    for l in lines:
+                        if "\t" in l:
+                            k, ws = l.split("\t", 1)
+                        else:
+                            continue
+                        # check weight length
+                        if k.strip() == preset:
+                            # remove.
+                            deleted = True
+                            continue
+                        if len(l) > 0:
+                            newlines.append(l)
+
+                    if deleted:
+                        f.seek(0)
+                        raw = "\n".join(newlines) + "\n"
+                        f.write(raw)
+                        f.truncate()
+
+                if not deleted:
+                    raise gr.Error("Fail to delete. Preset not found or mismatched.")
+
+                gr.Info(f"Successfully deleted preset {preset}")
+
+            # update dropdown
+            updated = list(dd_presets(True).keys())
+            return gr.update(choices=updated, value='')
+
+
+        def select_preset(name):
+            setting_line = find_preset_by_name(name)
+            if setting_line is not None:
+                print(setting_line)
+                choices = _get_preset_choices(setting_line)
+                return gr.update(value=choices)
+
+            return gr.update()
+
+
+        def select_load_preset(name):
+            if name == "None":
+                # ignore
+                return gr.update()
+            print(f"- load preset {name}...")
+            setting_line = find_preset_by_name(name)
+            if setting_line is not None:
+                params = _get_preset_params(setting_line)
+
+                params = prepare_load_preset(params)
+
+                fields = _infotext_fields_names()
+                ret = []
+                for field in fields:
+                    if field in params:
+                        if field in ["Classes a", "Classes b", "Detect order a", "Detect order b"]:
+                            ret.append(gr.update(value=params[field]))
+                        else:
+                            ret.append(gr.update(value=params[field]))
+                    else:
+                        ret.append(gr.update())
+
+                return ret
+
+            return gr.update()
+
+        # Load preset button
+        preset_select.select(fn=select_load_preset, inputs=[preset_select], outputs=_infotext_fields_components())
+
+        # save presets dialog
+        preset_save.click(
+            fn=lambda *args: [prepare_save_preset(*args), gr.update(visible=True), gr.update(value="New Preset")],
+            inputs=[*all_args[:-1]],
+            outputs=[preset_edit_settings, preset_edit_dialog, preset_edit_select],
+            show_progress=False,
+        ).then(fn=None, _js="function(){ popupId('" + preset_edit_dialog.elem_id + "'); }")
+
+        preset_edit_select.select(fn=select_preset, inputs=[preset_edit_select], outputs=preset_edit_settings, show_progress=False)
+        preset_edit_read.click(fn=select_preset, inputs=[preset_edit_select], outputs=preset_edit_settings, show_progress=False)
+        preset_edit_save.click(fn=save_preset_settings, inputs=[preset_edit_select, preset_edit_settings, preset_edit_overwrite], outputs=[preset_edit_select])
+        preset_edit_delete.click(fn=delete_preset, inputs=[preset_edit_select, preset_edit_overwrite], outputs=[preset_edit_select])
 
         def get_txt2img_components():
             DD = MuDetectionDetailerScript
@@ -1617,6 +2180,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_inpaint_width, dd_inpaint_height,
             dd_cfg_scale, dd_steps, dd_noise_multiplier,
             dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+            dd_states,
         )
         p_txt.extra_generation_params.update(extra_params)
 
@@ -1713,6 +2277,54 @@ class MuDetectionDetailerScript(scripts.Script):
                 detected = results[0][0] + f" {scores[0]}" + "," + ",".join([str(x) for x in bboxes[0]])
             return detected
 
+
+        def override_inpaint(p, params):
+            if params is None:
+                return
+
+            # parse and set/load default
+            params = (tuple(setting.split(":", 1)) for setting in params)
+            params = dict((x, y.strip()) for x, y in params)
+            params = prepare_load_preset(params)
+
+            sampler =  params.get("Sampler", None)
+            if sampler is not None and sampler in ["None", "Default", "Use same sampler"]:
+                params.pop("Sampler")
+
+            override_map = (
+                ("Mask blur", "mask_blur"),
+                ("Denoising", "denoising_strength"),
+                ("Inpaint full", "inpaint_full_res"),
+                ("Inpaint padding", "inpaint_full_res_padding"),
+                ("Inpaint width", "width"),
+                ("Inpaint height", "height"),
+                ("Sampler", "sampler_name"),
+                ("Steps", "steps"),
+                ("Noise multiplier", "initial_noise_multiplier"),
+                ("CFG scale", "cfg_scale"),
+            )
+
+            override_settings = {}
+
+            checkpoint = params.get("Checkpoint", "None")
+            if checkpoint not in ["None", "Default", "Use same checkpoint"]:
+                override_settings["sd_model_checkpoint"] = checkpoint
+
+            vae = params.get("VAE", "None")
+            if vae not in ["None", "Default", "Use same VAE"]:
+                override_settings["sd_vae"] = vae
+
+            if params.get("CLIP skip", 0) > 0:
+                override_settings["CLIP_stop_at_last_layers"] = params.get("CLIP skip")
+
+            for name, field in override_map:
+                if params.get(name, None):
+                    setattr(p, field, params.get(name))
+
+            if len(override_settings) > 0:
+                p.override_settings = p.override_settings.update(override_settings)
+
+
         # check censored style
         use_censored = False
         censor_params = dd_states.get("censored", None)
@@ -1791,6 +2403,10 @@ class MuDetectionDetailerScript(scripts.Script):
                 p2.seed = start_seed
                 p2.init_images = [init_image]
 
+                # check override inpaint settings
+                inpaint_params = dd_states.get("inpaint b", None)
+                override_inpaint(p2, inpaint_params)
+
                 # prompt/negative_prompt for pre-processing
                 p2.prompt = dd_prompt_2 if use_prompt_edit_2 and dd_prompt_2 else p_txt.prompt
                 p2.negative_prompt = dd_neg_prompt_2 if use_prompt_edit_2 and dd_neg_prompt_2 else p_txt.negative_prompt
@@ -1858,6 +2474,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 p.seed = start_seed
                 p.init_images = [init_image]
+
+                # check override inpaint settings
+                inpaint_params = dd_states.get("inpaint a", None)
+                override_inpaint(p, inpaint_params)
 
                 # get img2img sampler steps and update total tqdm
                 _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
@@ -2821,6 +3441,13 @@ def on_infotext_pasted(infotext, results):
                 v = v[1:-1]
             arr = v.split(",")
             updates[k] = arr
+
+        # fix inpaint a,b overriding options
+        if k.endswith(" inpaint a") or k.endswith(" inpaint b"):
+            if v[0] == '"' and v[-1] == '"':
+                v = unquote(v)
+            choices = _get_preset_choices(v)
+            updates[k] = choices
 
     results.update(updates)
 
