@@ -664,7 +664,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 preset_edit_settings = gr.Dropdown(label="Settings", show_label=True, elem_id="mudd_preset_edit", multiselect=True)
 
             with gr.Row():
-                preset_edit_overwrite = gr.Checkbox(label="Confirm or Overwrite", value=False, interactive=True, visible=False) # XXX checkbox is not working with dialog
+                preset_edit_overwrite = gr.Checkbox(label="Confirm or Overwrite", value=False, interactive=True, visible=True)
                 preset_edit_save = gr.Button('Save', variant='primary', elem_id='mudd_preset_edit_save')
                 preset_edit_delete = gr.Button('Delete', variant='primary', elem_id='mudd_preset_edit_delete')
                 preset_edit_close = gr.Button('Close', variant='secondary', elem_id='mudd_preset_edit_close')
@@ -1220,6 +1220,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             self.infotext_fields = (
                 (use_prompt_edit, "MuDDetailer use prompt edit"),
+                (use_prompt_edit_2, "MuDDetailer use prompt edit 2"),
                 (dd_prompt, "MuDDetailer prompt"),
                 (dd_neg_prompt, "MuDDetailer neg prompt"),
                 (dd_model_a, "MuDDetailer model a"),
@@ -1232,6 +1233,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_offset_x_a, "MuDDetailer offset x a"),
                 (dd_offset_y_a, "MuDDetailer offset y a"),
                 (dd_preprocess_b, "MuDDetailer preprocess b"),
+                (dd_prompt_2, "MuDDetailer prompt b"),
+                (dd_neg_prompt_2, "MuDDetailer neg prompt b"),
                 (dd_bitwise_op, "MuDDetailer bitwise"),
                 (dd_model_b, "MuDDetailer model b"),
                 (dd_classes_b, "MuDDetailer classes b"),
