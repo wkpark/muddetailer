@@ -1262,8 +1262,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_sampler, "MuDDetailer sampler"),
                 (dd_checkpoint, "MuDDetailer checkpoint"),
                 (dd_vae, "MuDDetailer VAE"),
-                (dd_inpainting_options_a, "MuDDetailer inpaint a"),
-                (dd_inpainting_options_b, "MuDDetailer inpaint b"),
+                (dd_inpainting_options_a, lambda d: gr.Dropdown.update(value=d.get("MuDDetailer inpaint a", []))),
+                (dd_inpainting_options_b, lambda d: gr.Dropdown.update(value=d.get("MuDDetailer inpaint b", []))),
                 (masks_a, "MuDDetailer detection a"),
                 (masks_b, "MuDDetailer detection b"),
             )
