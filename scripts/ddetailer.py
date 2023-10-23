@@ -727,12 +727,14 @@ class MuDetectionDetailerScript(scripts.Script):
                                     with gr.Row():
                                         dd_offset_x_a = gr.Slider(label='X offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                                         dd_offset_y_a = gr.Slider(label='Y offset', minimum=-200, maximum=200, step=1, value=0, min_width=140)
-                            with gr.Row():
+
+                            with gr.Accordion("Advanced options", open=False):
+                              with gr.Row():
                                 dd_max_per_img_a = gr.Slider(label='Max detections (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
                                 dd_detect_order_a = gr.CheckboxGroup(label="Detect order", choices=["area", "position"], interactive=True, value=[], min_width=140)
-                            with gr.Row():
+                              with gr.Row():
                                 dd_select_masks_a = gr.Textbox(label='Select detections to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
-                            with gr.Row():
+                              with gr.Row():
                                 dd_inpainting_options_a = gr.Dropdown(label='Override inpainting options', value=[], multiselect=True,
                                     info="Override default inpainting options",
                                     interactive=True)
@@ -793,12 +795,14 @@ class MuDetectionDetailerScript(scripts.Script):
                                     with gr.Row():
                                         dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                                         dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
-                            with gr.Row():
+
+                            with gr.Accordion("Advanced options", open=False):
+                              with gr.Row():
                                 dd_max_per_img_b = gr.Slider(label='Max detections (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
                                 dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=140)
-                            with gr.Row():
+                              with gr.Row():
                                 dd_select_masks_b = gr.Textbox(label='Select detections to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
-                            with gr.Row():
+                              with gr.Row():
                                 dd_inpainting_options_b = gr.Dropdown(label='Inpainting options (B)', value=[], multiselect=True,
                                     info="Override default inpainting options",
                                     interactive=True)
@@ -861,9 +865,9 @@ class MuDetectionDetailerScript(scripts.Script):
                         show_progress=False,
                     )
 
-                with gr.Accordion("Advanced options", open=False) as advanced:
-                    gr.HTML(value="<p>Low level options ('0' or 'Use same..' means use the same setting value)</p>")
-                    with gr.Row():
+                    with gr.Accordion("Advanced inpaint options", open=False) as advanced:
+                      gr.HTML(value="<p>Low level inpaint options ('0' or 'Use same..' means use the same setting values)</p>")
+                      with gr.Row():
                         with gr.Column(variant="compact"):
                             with gr.Row():
                                 dd_sampler = gr.Dropdown(label='Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler", min_width=200)
@@ -872,7 +876,7 @@ class MuDetectionDetailerScript(scripts.Script):
                             with gr.Row():
                                 dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=200)
                                 dd_cfg_scale = gr.Slider(label='CFG Scale', minimum=0, maximum=30, step=0.5, value=0, min_width=200)
-                    with gr.Column(variant="compact"):
+                      with gr.Column(variant="compact"):
                         with gr.Row():
                             dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint", min_width=155)
                             create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
@@ -880,9 +884,9 @@ class MuDetectionDetailerScript(scripts.Script):
                             dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae", min_width=155)
                             create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
-                    with gr.Column(variant="compact"):
+                      with gr.Column(variant="compact"):
                         dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
-                    with gr.Column():
+                      with gr.Column():
                         with gr.Row():
                             advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
                         advanced_reset.select(
