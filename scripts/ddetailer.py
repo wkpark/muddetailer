@@ -2402,6 +2402,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 else:
                     gen_selected = range(len(masks_b))
                 state.job_count += len(gen_selected)
+                if len(gen_selected) > 0 and (p_txt.n_iter == 1 and p_txt.batch_size == 1): shared.state.nextjob()
 
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b} for output generation {p_txt._idx + 1}.")
@@ -2475,6 +2476,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     gen_selected = range(len(masks))
 
                 state.job_count += len(gen_selected)
+                if len(gen_selected) > 0 and (p_txt.n_iter == 1 and p_txt.batch_size == 1): shared.state.nextjob()
 
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label} for output generation {p_txt._idx + 1}.")
