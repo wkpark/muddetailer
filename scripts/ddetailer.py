@@ -3098,7 +3098,8 @@ except ImportError:
 def check_validity():
     """check validity of model + config settings"""
     model_list = list_models()
-    print(f" Total \033[92m{len(model_list)}\033[0m mmdet models and \033[92m{3}\033[0m mediapipe models.")
+    yolo_models = [model for model in model_list if model.startswith("yolo/")]
+    print(f" Total \033[92m{len(model_list)-len(yolo_models)}\033[0m mmdet, \033[92m{len(yolo_models)}\033[0m yolo and \033[92m{3}\033[0m mediapipe models.")
     check = shared.opts.data.get("mudd_check_validity", True)
     if not check:
         print(" You can enable validity tester in the Settings-> μ DDetailer.")
