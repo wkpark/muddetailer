@@ -2124,6 +2124,13 @@ class MuDetectionDetailerScript(scripts.Script):
         info = ""
         ddetail_count = 1
 
+        # sd-webui workaround
+        if state.job_no == 0 or getattr(p, "_fix_nextjob", False):
+            p._fix_nextjob = True
+            state.nextjob()
+        else:
+            p._fix_nextjob = False
+
         # get some global settings
         use_max_per_img = shared.opts.data.get("mudd_max_per_img", 20)
         # set max_per_img
@@ -2402,7 +2409,6 @@ class MuDetectionDetailerScript(scripts.Script):
                 else:
                     gen_selected = range(len(masks_b))
                 state.job_count += len(gen_selected)
-                if len(gen_selected) > 0 and (p_txt.n_iter == 1 and p_txt.batch_size == 1): shared.state.nextjob()
 
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b} for output generation {p_txt._idx + 1}.")
@@ -2476,7 +2482,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     gen_selected = range(len(masks))
 
                 state.job_count += len(gen_selected)
-                if len(gen_selected) > 0 and (p_txt.n_iter == 1 and p_txt.batch_size == 1): shared.state.nextjob()
 
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label} for output generation {p_txt._idx + 1}.")
@@ -2552,6 +2557,9 @@ class MuDetectionDetailerScript(scripts.Script):
             censored_image.info["parameters"] = info
             self._image_masks[-1].append(censored_image)
 
+        if p_txt._fix_nextjob:
+            # fix for webui behavior
+            state.job_no -= 1
         return processed
 
     def postprocess_image(self, p, pp, *_args):
