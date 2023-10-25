@@ -1542,7 +1542,8 @@ class MuDetectionDetailerScript(scripts.Script):
             # check already have
             preset = preset.replace("\t", " ").replace(",", "_")
             if preset == "" or preset.lower() == "new preset":
-                raise gr.Error("No preset name given")
+                gr.Warning("No preset name given")
+                return gr.update()
 
             w = find_preset_by_name(preset)
             if w is not None and not overwrite:
@@ -1599,8 +1600,8 @@ class MuDetectionDetailerScript(scripts.Script):
 
         def delete_preset(preset, confirm=True):
             preset = preset.replace("\t", " ").replace(",", "_")
-            if preset == "":
-                gr.Error("No preset name given")
+            if preset == "" or preset.lower() == "new preset":
+                gr.Warning("No preset name given")
                 return gr.update()
 
             w = find_preset_by_name(preset)
