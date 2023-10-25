@@ -502,6 +502,12 @@ def prepare_load_preset(params):
         "Conf b": 30,
         "Dilation a": 4,
         "Dilation b": 4,
+        "Inpaint a": [],
+        "Inpaint b": [],
+        "Classes a": [],
+        "Classes b": [],
+        "Detect order a": [],
+        "Detect order b": [],
     }
 
     outs = list(defaults.values())
@@ -516,7 +522,7 @@ def prepare_load_preset(params):
                 outs[i] = float(outs[i])
             elif k in ["Inpaint full", "Use prompt edit", "Use prompt edit 2", "Preprocess b"]:
                 outs[i] = eval(outs[i]) if outs[i] in ["True", "False"] else False
-            elif k in ["Classes a", "Classes b", "Detect order a", "Detect order b"]:
+            elif k in ["Classes a", "Classes b", "Detect order a", "Detect order b", "Inpaint a", "Inpaint b"]:
                 outs[i] = [x.strip() for x in outs[i].split(",")]
         params[k] = outs[i]
 
@@ -1370,7 +1376,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 prompt_2, neg_prompt_2,
                 mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding,
                 inpaint_width, inpaint_height, cfg_scale, steps, noise_multiplier,
-                sampler, checkpoint, vae, clipskip):
+                sampler, checkpoint, vae, clipskip,
+                inpainting_options_a, inpainting_options_b):
 
             params = {
                 "Use prompt edit": use_prompt_edit,
@@ -1394,6 +1401,9 @@ class MuDetectionDetailerScript(scripts.Script):
             if select_masks_a is not None and select_masks_a != "":
                 params["Select masks a"] = select_masks_a
 
+            if inpainting_options_a is not None and len(inpainting_options_a) > 0:
+                params["Inpaint a"] = ",".join(inpainting_options_a)
+
             if model_b != "None":
                 params["Model b"] = model_b
                 if dd_classes_b is not None and len(classes_b) > 0:
@@ -1402,6 +1412,10 @@ class MuDetectionDetailerScript(scripts.Script):
                     params["Detect order b"] = ",".join(detect_order_b)
                 if dd_select_masks_b is not None and select_masks_b != "":
                     params["Select masks b"] = select_masks_b
+
+                if inpainting_options_b is not None and len(inpainting_options_b) > 0:
+                    params["Inpaint b"] = ",".join(inpainting_options_b)
+
                 params["Preprocess b"] = preprocess_b
                 params["Bitwise"] = bitwise_op
                 params["Conf b"] = conf_b
@@ -1674,7 +1688,7 @@ class MuDetectionDetailerScript(scripts.Script):
         # save presets dialog
         preset_save.click(
             fn=lambda *args: [prepare_save_preset(*args), gr.update(visible=True), gr.update(value="New Preset")],
-            inputs=[*all_args[:-1]],
+            inputs=[*all_args[:-1], dd_inpainting_options_a, dd_inpainting_options_b],
             outputs=[preset_edit_settings, preset_edit_dialog, preset_edit_select],
             show_progress=False,
         ).then(fn=None, _js="function(){ popupId('" + preset_edit_dialog.elem_id + "'); }")
