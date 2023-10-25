@@ -1262,8 +1262,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_sampler, "MuDDetailer sampler"),
                 (dd_checkpoint, "MuDDetailer checkpoint"),
                 (dd_vae, "MuDDetailer VAE"),
-                (dd_inpainting_options_a, lambda d: gr.Dropdown.update(value=d.get("MuDDetailer inpaint a", []))),
-                (dd_inpainting_options_b, lambda d: gr.Dropdown.update(value=d.get("MuDDetailer inpaint b", []))),
+                (dd_inpainting_options_a, "MuDDetailer inpaint a"),
+                (dd_inpainting_options_b, "MuDDetailer inpaint b"),
                 (masks_a, "MuDDetailer detection a"),
                 (masks_b, "MuDDetailer detection b"),
             )
@@ -3466,6 +3466,12 @@ def on_infotext_pasted(infotext, results):
                 v = unquote(v)
             choices = _get_preset_choices(v)
             updates[k] = choices
+
+    # set default values
+    if updates.get("MuDDetailer inpaint a", None) is None:
+        updates["MuDDetailer inpaint a"] = []
+    if updates.get("MuDDetailer inpaint b", None) is None:
+        updates["MuDDetailer inpaint b"] = []
 
     results.update(updates)
 
