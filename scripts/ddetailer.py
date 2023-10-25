@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import cv2
+import hashlib
 from PIL import Image, ImageColor
 import math
 import numpy as np
@@ -27,7 +28,7 @@ from modules.call_queue import wrap_gradio_gpu_call
 from modules.generation_parameters_copypaste import ParamBinding, register_paste_params_button
 from modules.processing import Processed, StableDiffusionProcessingImg2Img
 from modules.shared import opts, cmd_opts, state
-from modules.sd_models import model_hash
+from modules.sd_models import model_hash as old_model_hash
 from modules.paths import models_path, data_path
 from modules.ui import create_refresh_button, plaintext_to_html
 from basicsr.utils.download_util import load_file_from_url
@@ -94,6 +95,11 @@ def list_models(real=True):
             title, short_model_name = modeltitle(filename, h)
             models.append(title)
             models_alias[title] = filename
+            models_alias[filename] = title # reverse index
+
+            old_h = old_model_hash(filename)
+            title, _ = modeltitle(filename, old_h)
+            models_alias[title] = filename
 
         def sortkey(name):
             order2 = [ "bbox", "mediapipe", "yolo/", "segm" ]
@@ -111,6 +117,32 @@ def list_models(real=True):
             models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
             models = sorted(models, key=sortkey)
         return models
+
+
+def model_hash(path):
+    """copy of modules/hashes calculate_sha256() with minor fixes"""
+    hash_sha256 = hashlib.sha256()
+    blksize = 1024 * 1024
+
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(blksize), b""):
+                hash_sha256.update(chunk)
+
+        return hash_sha256.hexdigest()[0:8]
+    except FileNotFoundError:
+        return 'NOFILE'
+
+
+def compat_model_hash(modelname):
+    if models_alias.get(modelname, None) is not None:
+        filename = models_alias[modelname]
+        modelname = models_alias[filename] # reverse index
+        return gr.update(value=modelname)
+
+    # simply ignore
+    return gr.update(value=modelname)
+
 
 def startup():
     from launch import is_installed, run
@@ -1218,13 +1250,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_model_a.change(
                 lambda modelname: {
+                    dd_model_a:compat_model_hash(modelname),
                     dd_model_b:gr_show( modelname != "None" ),
                     model_a_options:gr_show( modelname != "None" ),
                     options:gr_show( modelname != "None" ),
                     use_prompt_edit:gr_enable( modelname != "None" )
                 },
                 inputs= [dd_model_a],
-                outputs=[dd_model_b, model_a_options, options, use_prompt_edit],
+                outputs=[dd_model_a, dd_model_b, model_a_options, options, use_prompt_edit],
                 show_progress=False,
             )
 
@@ -1276,13 +1309,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
             dd_model_b.change(
                 lambda modelname: {
+                    dd_model_b:compat_model_hash(modelname),
                     model_b_options:gr_show( modelname != "None" ),
                     model_b_options_2:gr_show( modelname != "None" ),
                     operation:gr_show( modelname != "None" ),
                     use_prompt_edit_2:gr_enable( modelname != "None" )
                 },
                 inputs= [dd_model_b],
-                outputs=[model_b_options, model_b_options_2, operation, use_prompt_edit_2],
+                outputs=[dd_model_b, model_b_options, model_b_options_2, operation, use_prompt_edit_2],
                 show_progress=False,
             )
 
@@ -2874,6 +2908,8 @@ def modelpath(modelname):
         path = models_alias[model]
         model_h = model.split("[")[-1].split("]")[0]
         if model_hash(path) == model_h:
+            return path
+        if old_model_hash(path) == model_h:
             return path
 
     raise gr.Error("No matched model found.")
