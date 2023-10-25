@@ -1527,9 +1527,8 @@ class MuDetectionDetailerScript(scripts.Script):
         def save_preset_settings(preset, settings, overwrite=False):
             # check already have
             preset = preset.replace("\t", " ").replace(",", "_")
-            if preset == "":
-                gr.Error("No preset name given")
-                return gr.update()
+            if preset == "" or preset.lower() == "new preset":
+                raise gr.Error("No preset name given")
 
             w = find_preset_by_name(preset)
             if w is not None and not overwrite:
@@ -1550,14 +1549,15 @@ class MuDetectionDetailerScript(scripts.Script):
                     raw = f.read()
 
                     lines = raw.splitlines()
-                    for i, l in enumerate(lines, start=1):
+                    for i, l in enumerate(lines):
                         if "\t" in l:
                             k, ws = l.split("\t", 1)
                         else:
                             continue
-                        lines[i] = save_preset
-                        replaced = True
-                        break
+                        if k.strip() == preset:
+                            lines[i] = save_preset
+                            replaced = True
+                            break
 
                     if replaced:
                         f.seek(0)
