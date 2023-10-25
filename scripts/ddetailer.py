@@ -1636,7 +1636,6 @@ class MuDetectionDetailerScript(scripts.Script):
         def select_preset(name):
             setting_line = find_preset_by_name(name)
             if setting_line is not None:
-                print(setting_line)
                 choices = _get_preset_choices(setting_line)
                 return gr.update(value=choices)
 
@@ -1644,9 +1643,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
 
         def select_load_preset(name):
+            fields = _infotext_fields_names()
             if name == "None":
                 # ignore
-                return gr.update()
+                return [gr.update()] * len(fields)
             print(f"- load preset {name}...")
             setting_line = find_preset_by_name(name)
             if setting_line is not None:
@@ -1654,7 +1654,6 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 params = prepare_load_preset(params)
 
-                fields = _infotext_fields_names()
                 ret = []
                 for field in fields:
                     if field in params:
@@ -1667,7 +1666,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 return ret
 
-            return gr.update()
+            return [gr.update()] * len(fields)
 
         # Load preset button
         preset_select.select(fn=select_load_preset, inputs=[preset_select], outputs=_infotext_fields_components())
