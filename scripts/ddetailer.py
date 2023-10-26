@@ -3230,6 +3230,7 @@ def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100
         results = ultra_inference(image, path, conf_thres, label, classes, max_per_img, device=get_device())
     else:
         return [[], [], [], []]
+    devices.torch_gc()
     return results
 
 def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_per_img):
