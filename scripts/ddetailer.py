@@ -119,6 +119,22 @@ def list_models(real=True):
         return models
 
 
+# copy of ui_common.setup_dialog from v1.6.0
+def setup_dialog(button_show, dialog, *, button_close=None):
+    """Sets up the UI so that the dialog (gr.Box) is invisible, and is only shown when buttons_show is clicked, in a fullscreen modal window."""
+
+    dialog.visible = False
+
+    button_show.click(
+        fn=lambda: gr.update(visible=True),
+        inputs=[],
+        outputs=[dialog],
+    ).then(fn=None, _js="function(){ popupId('" + dialog.elem_id + "'); }")
+
+    if button_close:
+        button_close.click(fn=None, _js="closePopup")
+
+
 def model_hash(path):
     """copy of modules/hashes calculate_sha256() with minor fixes"""
     hash_sha256 = hashlib.sha256()
@@ -1245,7 +1261,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         create_refresh_button(preset_select, lambda: None , lambda: {"choices": list(dd_presets(True).keys())}, "mudd_refresh_presets")
                         preset_save = gr.Button(value=save_symbol, elem_classes=["tool"])
 
-                    ui_common.setup_dialog(button_show=preset_save, dialog=preset_edit_dialog, button_close=preset_edit_close)
+                    setup_dialog(button_show=preset_save, dialog=preset_edit_dialog, button_close=preset_edit_close)
                     # preset_save.click() will be redefined later
 
             dd_model_a.change(
