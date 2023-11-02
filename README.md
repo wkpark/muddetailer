@@ -10,10 +10,11 @@ as a postprocess extension for [Stable Diffusion web UI](https://github.com/AUTO
 5. Support Load/Save presets
 
 ## Screenshot
-![image](https://github.com/wkpark/uddetailer/assets/232347/2a6b69d4-34ed-486b-bd90-b109397b1f38)
+![image](https://github.com/wkpark/uddetailer/assets/232347/7f297cc3-4379-43d0-a74e-91183a78f42c)
 
 ## Introduction
 It uses the [MMDetection](https://github.com/open-mmlab/mmdetection) library to detect objects, mask them especially human faces, and then partially redraw them to bring out the details.
+Optionally It uses [MMYOLO](https://github.com/open-mmlab/mmyolo), [mediapipe](https://github.com/google/mediapipe) and [ultralytics](https://github.com/ultralytics/ultralytics) libraries to detect objects.
 
 ![adoringfan](/misc/ddetailer_example_1.png)
 
@@ -32,6 +33,8 @@ With full-resolution inpainting, the extension is handy for improving faces with
 2. Press the `Apply and restart` button or restart SD web UI.
 
 The models and dependencies should download automatically. To install them manually, follow the [official instructions for installing mmdet](https://mmcv.readthedocs.io/en/latest/get_started/installation.html#install-with-mim-recommended). The models can be [downloaded here](https://huggingface.co/dustysys/ddetailer) and should be placed in `/models/mmdet/bbox` for bounding box (`anime-face_yolov3`) or `/models/mmdet/segm` for instance segmentation models (`dd-person_mask2former`). See the [MMDetection docs](https://mmdetection.readthedocs.io/en/latest/1_exist_data_model.html) for guidance on training your own models. For using official MMDetection pretrained models see [here](https://github.com/dustysys/ddetailer/issues/5#issuecomment-1311231989), these are trained for photorealism. See [Troubleshooting](https://github.com/wkpark/uddetailer#troubleshooting) if you encounter issues during installation.
+
+It also supports additional [ultralytics](https://github.com/ultralytics/ultralytics) detection models and you can install YoloV8 models manually. ultralytics's models should be placed in the `models/yolo` dir.
 
 ## Usage
 To use μ Detection Detailer in SD web UI, `enable` μ Detection Detailer first, and select optional parameters, then click 'Generate'. Here are some tips:
