@@ -2621,6 +2621,13 @@ class MuDetectionDetailerScript(scripts.Script):
             censored_image.info["parameters"] = info
             self._image_masks[-1].append(censored_image)
 
+        # overwrite params.txt
+        try:
+            with open(os.path.join(data_path, "params.txt"), "w", encoding="utf8") as file:
+                file.write(info)
+        except:
+            pass
+
         if p_txt._fix_nextjob:
             # fix for webui behavior
             state.job_no -= 1
