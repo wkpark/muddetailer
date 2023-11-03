@@ -20,7 +20,7 @@ from scripts.mediapipe import mediapipe_detector_facemesh as mp_detector_facemes
 from scripts.ultralytics import ultralytics_inference as ultra_inference
 
 from copy import copy, deepcopy
-from modules import processing, images
+from modules import processing, images, img2img
 from modules import safe
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
 from modules import ui_common
@@ -287,6 +287,8 @@ def startup():
     print("Done")
 
 startup()
+
+cn_module = None
 
 def gr_show(visible=True):
     return {"visible": visible, "__type__": "update"}
@@ -606,6 +608,20 @@ def dd_list_models():
         # register saved checkpoint_info again
         checkpoint_info.register()
 
+
+def get_controlnet_module():
+    import importlib
+
+    save_path = sys.path
+    if scriptdir not in sys.path: sys.path.insert(0, scriptdir)
+    import cn_module
+    importlib.reload(cn_module)
+    sys.path = save_path
+
+    cn_module.init_cn_module()
+    return cn_module
+
+
 class MuDetectionDetailerScript(scripts.Script):
 
     init_on_after_callback = False
@@ -708,6 +724,7 @@ class MuDetectionDetailerScript(scripts.Script):
     def ui(self, is_img2img):
         DD = MuDetectionDetailerScript
         save_symbol = "\U0001f4be"  # 💾
+        cn_module = get_controlnet_module()
 
         with gr.Box(elem_id="mudd_preset_edit_dialog", elem_classes="popup-dialog") as preset_edit_dialog:
             with gr.Row():
@@ -990,6 +1007,10 @@ class MuDetectionDetailerScript(scripts.Script):
                         outputs=[*all_inpainting_options],
                         show_progress=False,
                     )
+
+            with gr.Group(visible=True) as controlnet_ui:
+                with gr.Accordion("ControlNet options"):
+                    cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
 
             with gr.Group() as extra_helpers:
                 with gr.Accordion("NSFW censor options", open=False) as tools:
@@ -1528,7 +1549,9 @@ class MuDetectionDetailerScript(scripts.Script):
             components = [name.replace("MuDDetailer ", "").capitalize() for _, name in self.infotext_fields]
             return components
 
-        def prepare_states(states, inpainting_options_a, inpainting_options_b, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
+        def prepare_states(states, inpainting_options_a, inpainting_options_b,
+                model, module, weight, guidance_start, guidance_end, control_mode, pixel_perfect,
+                use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
             style = {}
             if use_blur:
                 style = {"type": "blur", "size": blur_size}
@@ -1542,6 +1565,17 @@ class MuDetectionDetailerScript(scripts.Script):
 
             states["censored"] = style
 
+            # controlnet
+            states["controlnet"] = {
+                "model": model,
+                "module": module,
+                "weight": weight,
+                "guidance_start": guidance_start,
+                "guidance_end": guidance_end,
+                "control_mode": control_mode,
+                "pixel_perfect": pixel_perfect,
+            }
+
             # setup inpainting override options
             if inpainting_options_a:
                 states["inpaint a"] = inpainting_options_a
@@ -1552,10 +1586,13 @@ class MuDetectionDetailerScript(scripts.Script):
             return states
 
         # prepare some extra stuff
+        # controlnet
+        cn_controls = [cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_pixel_perfect]
         generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
         prepare_args = dict(
             fn=prepare_states,
-            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
+            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, *cn_controls,
+                use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
             outputs=[dd_states],
             show_progress=False,
             queue=False,
@@ -2043,12 +2080,13 @@ class MuDetectionDetailerScript(scripts.Script):
 
         return seed, subseed
 
-    def script_filter(self, p):
+    def script_filter(self, p, scripts=None):
         if p.scripts is None:
             return None
+
         script_runner = copy(p.scripts)
 
-        default = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive"
+        default = scripts if scripts else "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
         script_names = default
         script_names_set = {
             name
@@ -2065,6 +2103,38 @@ class MuDetectionDetailerScript(scripts.Script):
 
         script_runner.alwayson_scripts = filtered_alwayson
         return script_runner
+
+    # from !adetailer controlnet_ext/restore.py and modified
+    @staticmethod
+    def cn_hijack_undo(p):
+        """undo/redo controlnet's hijack"""
+        orig_process = hasattr(processing, "__controlnet_original_process_images_inner")
+        orig_img2img = hasattr(img2img, "__controlnet_original_process_batch")
+
+        if orig_process:
+            p._cn_process = processing.process_images_inner
+            processing.process_images_inner = getattr(processing, "__controlnet_original_process_images_inner")
+        if orig_img2img:
+            p._cn_img2img = img2img.process_batch
+            img2img.process_batch = getattr(img2img, "__controlnet_original_process_batch")
+
+        # save
+        p.cn_allow_script_control = None
+        if "control_net_allow_script_control" in shared.opts.data:
+            p._cn_allow_script_control = shared.opts.data["control_net_allow_script_control"]
+            shared.opts.data["control_net_allow_script_control"] = True
+
+
+    @staticmethod
+    def cn_hijack_redo(p):
+        if p._cn_process:
+            processing.process_images_inner = p._cn_process
+        if p._cn_img2img:
+            img2img.process_batch = p._cn_img2img
+
+        # restore
+        if p._cn_allow_script_control is not None:
+            shared.opts.data["control_net_allow_script_control"] = p.cn_allow_script_control
 
     def process(self, p, *args):
         if getattr(p, "_disable_muddetailer", False):
@@ -2304,8 +2374,28 @@ class MuDetectionDetailerScript(scripts.Script):
                 extra_generation_params=p_txt.extra_generation_params,
                 override_settings=override_settings,
             )
-        p.scripts = self.script_filter(p_txt)
+        p.cached_c = [None, None]
+        p.cached_uc = [None, None]
+
+        default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
+        default_scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
+
+        # controlnet
+        cn_module = get_controlnet_module()
+        cn_controls = cn_module.get_cn_controls(dd_states)
+        if cn_controls is not None:
+            p.control_net_enabled = True
+
+            default_scripts += ",controlnet"
+            cn_units = [cn_module.cn_unit(p, *cn_controls)]
+        else:
+            p.control_net_enabled = False
+
+        p.scripts = self.script_filter(p_txt, default_scripts)
         p.script_args = deepcopy(p_txt.script_args) if p_txt.script_args is not None else {}
+
+        if cn_controls is not None:
+            cn_module.update_cn_script_in_processing(p, cn_units)
 
         p.do_not_save_grid = True
         p.do_not_save_samples = True
@@ -2413,6 +2503,7 @@ class MuDetectionDetailerScript(scripts.Script):
         if censor_params and censor_type in ["blur", "mosaic", "black"]:
             use_censored = True
 
+        self.cn_hijack_undo(p)
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -2584,6 +2675,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     censored_image = self.make_censored(processed.images[0], masks_b, results_b, censor_params, select_masks_b)
 
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
+
+        self.cn_hijack_redo(p)
 
         masks_params = {}
         if len(detected_a) > 0:
@@ -3107,12 +3200,14 @@ def on_ui_settings():
             section=section,
         ),
     )
+    default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
     shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=section))
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=section))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=section))
     shared.opts.add_option("mudd_check_validity", shared.OptionInfo(True, "Check validity of model configs on startup", section=section))
     shared.opts.add_option("mudd_check_model_validity", shared.OptionInfo(False, "Check validity of models on startup", section=section))
     shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
+    shared.opts.add_option("mudd_selected_scripts", shared.OptionInfo(default_scripts, "Selected scripts to apply (comma separated)", section=section))
 
 
 def _create_segms(gray, bboxes):
