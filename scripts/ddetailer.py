@@ -1911,6 +1911,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     # only one detection case.
                     labs_b = [f"{tmp[0]}:1"]
 
+            devices.torch_gc()
+
             return (image if input is None else gr.update(), gal, geninfo,
                 gr.update(visible=True if len(labs_a) > 0 else False),
                 gr.update(visible=True if len(labs_b) > 0 else False),
