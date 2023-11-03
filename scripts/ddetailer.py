@@ -2533,7 +2533,7 @@ class MuDetectionDetailerScript(scripts.Script):
             if len(masks_a) > 0 and use_censored and not censor_after:
                 censored_image = self.make_censored(init_image, masks_a, results_a, censor_params, select_masks_a)
 
-            elif (dd_bitwise_op != "None" and len(masks_ab) > 0) or (dd_bitwise_op == "None" and len(masks_a) > 0):
+            elif (dd_model_b != "None" and dd_bitwise_op != "None" and len(masks_ab) > 0) or (dd_bitwise_op == "None" and len(masks_a) > 0):
                 masks = masks_a if dd_bitwise_op == "None" else masks_ab
                 label = label_a if dd_bitwise_op == "None" else label_ab
                 results = update_result_masks(results_a, masks)
