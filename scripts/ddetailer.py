@@ -322,6 +322,8 @@ def ddetailer_extra_params(
     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
     dd_states,
 ):
+    cn_module = get_controlnet_module()
+
     params = {
         "MuDDetailer use prompt edit": use_prompt_edit,
         "MuDDetailer use prompt edit b": use_prompt_edit_2,
@@ -403,6 +405,11 @@ def ddetailer_extra_params(
         params_b = (tuple(setting.split(":", 1)) for setting in params_b)
         params_b = dict((x, y.strip()) for x, y in params_b)
         params["MuDDetailer inpaint b"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_b.items() if v is not None])
+
+    # controlnet
+    cn_params = cn_module.get_cn_extra_params(dd_states)
+    if cn_params:
+        params["MuDDetailer ControlNet"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in cn_params.items() if v is not None])
 
     return params
 
@@ -1298,7 +1305,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 show_progress=False,
             )
 
-            self.infotext_fields = (
+            self._infotext_fields = (
                 (use_prompt_edit, "MuDDetailer use prompt edit"),
                 (use_prompt_edit_2, "MuDDetailer use prompt edit 2"),
                 (dd_prompt, "MuDDetailer prompt"),
@@ -1342,6 +1349,17 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_inpainting_options_b, "MuDDetailer inpaint b"),
                 (masks_a, "MuDDetailer detection a"),
                 (masks_b, "MuDDetailer detection b"),
+            )
+
+            # additional ControlNet extra params
+            self.infotext_fields = self._infotext_fields + (
+                (cn_model, "MuDDetailer CN Model"),
+                (cn_module_, "MuDDetailer CN Module"),
+                (cn_weight, "MuDDetailer CN Weight"),
+                (cn_guidance_start, "MuDDetailer CN Guidance Start"),
+                (cn_guidance_end, "MuDDetailer CN Guidance End"),
+                (cn_control_mode, lambda d: gr.update(value=cn_module.external_code.ControlMode[d.get("MuDDetailer CN Control Mode", 'BALANCED')])),
+                (cn_pixel_perfect, "MuDDetailer CN Pixel Perfect"),
             )
 
             dd_model_b.change(
@@ -1542,11 +1560,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
 
         def _infotext_fields_components():
-            components = [component for component, _ in self.infotext_fields]
+            components = [component for component, _ in self._infotext_fields]
             return components
 
         def _infotext_fields_names():
-            components = [name.replace("MuDDetailer ", "").capitalize() for _, name in self.infotext_fields]
+            components = [name.replace("MuDDetailer ", "").capitalize() for _, name in self._infotext_fields]
             return components
 
         def prepare_states(states, inpainting_options_a, inpainting_options_b,
@@ -2678,6 +2696,10 @@ class MuDetectionDetailerScript(scripts.Script):
 
         self.cn_hijack_redo(p)
 
+        # remove ControlNet Unit info
+        if cn_controls is not None:
+            p_txt.extra_generation_params.pop("ControlNet 0", None)
+
         masks_params = {}
         if len(detected_a) > 0:
             masks_params["MuDDetailer detection a"] = json.dumps(detected_a, separators=(",", ":")) if type(detected_a) is dict else detected_a
@@ -3637,6 +3659,17 @@ def on_infotext_pasted(infotext, results):
                 v = unquote(v)
             choices = _get_preset_choices(v)
             updates[k] = choices
+
+        # fix controlnet params
+        if k.find(" ControlNet") > 0:
+            if v[0] == '"' and v[-1] == '"':
+                v = unquote(v)
+            params = _get_preset_params(v)
+            for kk, vv in params.items():
+                if "Control Mode" in kk:
+                    vv = vv.replace("ControlMode.", "")
+                kk = "MuDDetailer CN " + kk
+                updates[kk] = vv
 
     # set default values
     if updates.get("MuDDetailer inpaint a", None) is None:

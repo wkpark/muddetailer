@@ -105,6 +105,57 @@ def get_cn_controls(states):
     return [model, module, weight, guidance_start, guidance_end, control_mode, pixel_perfect]
 
 
+def get_cn_extra_params(states):
+    global external_code
+
+    cn_states = states.get("controlnet", None)
+    if cn_states is None:
+        return None
+
+    model = cn_states.get("model", "None")
+    module = cn_states.get("module", "None")
+
+    if module == "None":
+        types = [t.strip() for t in "inpaint,canny,depth,openpose,lineart,softedge,scribble,tile".split(",")]
+        if any(t in model for t in types):
+            for t in types:
+                if t in model:
+                    # auto detect module
+                    modules = get_cn_modules(t)
+                    module = modules[1]
+                    break
+
+    # replace module alias to module
+    aliases = external_code.get_modules(True)
+    modules = external_code.get_modules()
+    if module in modules:
+        pass
+    elif module in aliases:
+        j = aliases.index(module)
+        module = modules[j]
+    else:
+        # not found?
+        pass
+
+    control_mode = cn_states.get("control_model", external_code.ControlMode.BALANCED)
+    weight = cn_states.get("weight", 1)
+    guidance_start = cn_states.get("guidance_start", 0)
+    guidance_end = cn_states.get("guidance_end", 1)
+    pixel_perfect = cn_states.get("pixel_perfect", True)
+
+    params = {
+        "Model": model,
+        "Module": module,
+        "Weight": weight,
+        "Guidance Start": guidance_start,
+        "Guidance End": guidance_end,
+        "Pixel Perfect": pixel_perfect,
+        "Control Mode": control_mode,
+    }
+
+    return params
+
+
 def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, control_mode=None, pixel_perfect=True):
     global external_code, cn_extension
 
