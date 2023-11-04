@@ -622,7 +622,7 @@ def get_controlnet_module():
     save_path = sys.path
     if scriptdir not in sys.path: sys.path.insert(0, scriptdir)
     import cn_module
-    importlib.reload(cn_module)
+    #importlib.reload(cn_module)
     sys.path = save_path
 
     cn_module.init_cn_module()
