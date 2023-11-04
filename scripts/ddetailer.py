@@ -766,13 +766,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
 
-                    enabled.input(
-                        fn=lambda enable, model: gr.update(value=default_model if enable and model == "None" else model),
-                        inputs=[enabled, dd_model_a],
-                        outputs=[dd_model_a],
-                        show_progress=False,
-                    )
-
                     with gr.Group():
                         with gr.Group(visible=False) as prompt_1:
                             with gr.Row(elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_toprow_prompt"):
@@ -900,8 +893,8 @@ class MuDetectionDetailerScript(scripts.Script):
                         outputs=[dd_classes_b],
                     )
 
-            with gr.Group(visible=False) as options:
-                with gr.Accordion("Inpainting options"):
+            with gr.Group(visible=True) as options:
+                with gr.Accordion("Inpainting options", open=False):
                     with gr.Column(variant="compact"):
                         with gr.Row():
                             dd_mask_blur = gr.Slider(label='Mask blur', minimum=0, maximum=64, step=1, value=4, min_width=200)
@@ -1016,7 +1009,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     )
 
             with gr.Group(visible=True) as controlnet_ui:
-                with gr.Accordion("ControlNet options"):
+                with gr.Accordion("ControlNet options", open=False):
                     cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
 
             with gr.Group() as extra_helpers:
@@ -1304,6 +1297,19 @@ class MuDetectionDetailerScript(scripts.Script):
                 outputs=[dd_model_a, dd_model_b, model_a_options, options, use_prompt_edit],
                 show_progress=False,
             )
+
+
+            enabled.input(
+                fn=lambda enable, model: {
+                    dd_model_a: default_model if enable and model == "None" else model,
+                    model_a_options: gr.update(visible=model != "None"),
+                    options: gr.update(visible=model != "None"),
+                },
+                inputs=[enabled, dd_model_a],
+                outputs=[dd_model_a, model_a_options, options],
+                show_progress=False,
+            )
+
 
             self._infotext_fields = (
                 (use_prompt_edit, "MuDDetailer use prompt edit"),
