@@ -21,7 +21,7 @@ from scripts.ultralytics import ultralytics_inference as ultra_inference
 
 from copy import copy, deepcopy
 from modules import processing, images, img2img
-from modules import safe
+from modules import safe, script_loading
 from modules import scripts, script_callbacks, shared, devices, modelloader, sd_models, sd_samplers_common, sd_vae, sd_samplers
 from modules import ui_common
 from modules.call_queue import wrap_gradio_gpu_call
@@ -287,8 +287,6 @@ def startup():
     print("Done")
 
 startup()
-
-cn_module = None
 
 def gr_show(visible=True):
     return {"visible": visible, "__type__": "update"}
@@ -617,13 +615,15 @@ def dd_list_models():
 
 
 def get_controlnet_module():
-    import importlib
+    #import importlib
 
-    save_path = sys.path
-    if scriptdir not in sys.path: sys.path.insert(0, scriptdir)
-    import cn_module
+    if "cn_module" in sys.modules:
+        import cn_module
+    else:
+        print("loading.. cn_modole")
+        cn_module = script_loading.load_module(os.path.join(scriptdir, "cn_module.py"))
+        sys.modules["cn_module"] = cn_module
     #importlib.reload(cn_module)
-    sys.path = save_path
 
     cn_module.init_cn_module()
     return cn_module
