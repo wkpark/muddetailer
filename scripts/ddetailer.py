@@ -2521,7 +2521,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         # check censored style
         use_censored = False
-        censor_params = dd_states.get("censored", None)
+        censor_params = dd_states.get("censored", {})
         censor_type = censor_params.get("type", None)
         censor_after = censor_params.get("after", None)
         if censor_params and censor_type in ["blur", "mosaic", "black"]:
