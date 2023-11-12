@@ -163,8 +163,8 @@ def compat_model_hash(modelname):
 def startup():
     from launch import is_installed, run
     legacy = torch.__version__.split(".")[0] < "2"
+    python = sys.executable
     if not is_installed("mmdet"):
-        python = sys.executable
         run(f'"{python}" -m pip install -U openmim', desc="Installing openmim", errdesc="Couldn't install openmim")
         if legacy:
             run(f'"{python}" -m mim install mmcv-full', desc="Installing mmcv-full", errdesc="Couldn't install mmcv-full")
