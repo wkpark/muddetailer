@@ -406,7 +406,7 @@ def ddetailer_extra_params(
 
     # controlnet
     cn_params = cn_module.get_cn_extra_params(dd_states)
-    if cn_params:
+    if cn_params and cn_params.get("model", "None") is not "None" and cn_params.get("module", "None") is not "None":
         params["MuDDetailer ControlNet"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in cn_params.items() if v is not None])
 
     return params
