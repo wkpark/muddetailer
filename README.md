@@ -10,13 +10,17 @@ as a postprocess extension for [Stable Diffusion web UI](https://github.com/AUTO
 5. Support Load/Save presets
 
 ## Screenshot
-![image](https://github.com/wkpark/uddetailer/assets/232347/7f297cc3-4379-43d0-a74e-91183a78f42c)
+### Live preview with sd-webui
+
+https://github.com/wkpark/uddetailer/assets/232347/35fbd7ca-ecaa-4685-859e-b1eadac1a626
 
 ## Introduction
 It uses the [MMDetection](https://github.com/open-mmlab/mmdetection) library to detect objects, mask them especially human faces, and then partially redraw them to bring out the details.
 Optionally It uses [MMYOLO](https://github.com/open-mmlab/mmyolo), [mediapipe](https://github.com/google/mediapipe) and [ultralytics](https://github.com/ultralytics/ultralytics) libraries to detect objects.
 
-![adoringfan](/misc/ddetailer_example_1.png)
+| Original | Masked Preview | Inpaint |
+| -------- | -------------- | ------- |
+| ![00068-1108509048](https://github.com/wkpark/uddetailer/assets/232347/756933b9-e63a-4b52-af43-56fcdce6ee2e) | ![00062-1108509048](https://github.com/wkpark/uddetailer/assets/232347/c987aedf-af93-4e58-8e97-36046793b57a) | ![00063-1108509048](https://github.com/wkpark/uddetailer/assets/232347/346ec807-a2d0-4c8c-b24e-a016728b488a) |
 
 ### Segmentation
 Default models enable person and face instance segmentation.
