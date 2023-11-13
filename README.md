@@ -74,6 +74,15 @@ For any other issues installing, open an [issue](https://github.com/wkpark/uddet
 [^†]: converted from ADetailer yolov8 models. See also https://huggingface.co/Bingsu/adetailer
 [^††]: Mediapipe models
 
+## Optional Models
+Optional models could be downloaded using Model Download Helper
+
+| Model | License | Target |
+| ----- | ------ | ------ |
+| nsfwrecog_v1.onnx | License: [APL](https://github.com/padmalcom/nsfwrecog/blob/nsfwrecog_v1/LICENSE) | NSFW detection |
+| person_yolov8n-seg.pt | License: [AGPL](https://huggingface.co/Bingsu/adetailer/raw/main/README.md) | 2D / realistic person |
+| person_yolov8s-seg.pt | License: [AGPL](https://huggingface.co/Bingsu/adetailer/raw/main/README.md) | 2D / realistic person |
+
 ## Credits
 dustysys/[DDetailer](https://github.com/dustydust/ddetailer) - Author of the original Detection Detailer.
 
@@ -94,3 +103,5 @@ google/[mediapipe](https://github.com/google/mediapipe) - Mediapipe is an open-s
 ultralytics/[ultralytics](https://github.com/ultralytics/ultralytics) - Ultralytics is an open-source framework to support object detection and tracking, instance seg, classification and pose estimation framework.
 
 AUTOMATIC1111/[stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) - Web UI for Stable Diffusion, base application for this extension.
+
+padmalcom/[nsfwrecog](https://github.com/padmalcom/nsfwrecog) - NSFW Recog used for NSFW Consor helper
