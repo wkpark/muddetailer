@@ -52,6 +52,28 @@ If you get the message ERROR: 'Failed building wheel for pycocotools' follow [th
 
 For any other issues installing, open an [issue](https://github.com/wkpark/uddetailer/issues).
 
+## Models
+
+| Model                 | Target                |
+| --------------------- | --------------------- |
+| anime-face_yolov3.pt  | 2D / anime face       |
+| dd-person_mask2former.pt [^*] | coco class segmentation   |
+| yolov5_ins_n.pth [^**]  | coco class instance segmentaion |
+| yolov5_ins_s.pth | coco class instance segmentaion |
+| face_yolov8n.pt [^†]  | 2D / realistic face  |
+| face_yolov8s.pt [^†]  | 2D / realistic face  |
+| hand_yolov8n.pt [^†]  | 2D / realistic hand  |
+| hand_yolov8s.pt [^†]  | 2D / realistic hand  |
+| mediapipe_face_full [^††] | realistic face   |
+| mediapipe_face_short | realistic face        |
+| mediapipe_face_mesh  | realistic face        |
+
+
+[^*]: from MMDetection [Instance Segmentation model](https://github.com/open-mmlab/mmdetection/tree/main/configs/mask2former#instance-segmentation)
+[^**]: from MMYolo [Instance Segmentation model Yolov5](https://github.com/open-mmlab/mmyolo/tree/main/configs/yolov5#coco-instance-segmentation)
+[^†]: converted from ADetailer yolov8 models. See also https://huggingface.co/Bingsu/adetailer
+[^††]: Mediapipe models
+
 ## Credits
 dustysys/[DDetailer](https://github.com/dustydust/ddetailer) - Author of the original Detection Detailer.
 
