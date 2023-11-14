@@ -163,22 +163,6 @@ def compat_model_hash(modelname):
 def startup():
     from launch import is_installed, run
     legacy = torch.__version__.split(".")[0] < "2"
-    python = sys.executable
-    if not is_installed("mmdet"):
-        run(f'"{python}" -m pip install -U openmim', desc="Installing openmim", errdesc="Couldn't install openmim")
-        if legacy:
-            run(f'"{python}" -m mim install mmcv-full', desc="Installing mmcv-full", errdesc="Couldn't install mmcv-full")
-            run(f'"{python}" -m pip install mmdet==2.28.2', desc="Installing mmdet", errdesc="Couldn't install mmdet")
-        else:
-            run(f'"{python}" -m mim install mmcv>==2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
-            run(f'"{python}" -m pip install mmdet>=3', desc="Installing mmdet", errdesc="Couldn't install mmdet")
-
-    if not legacy and not is_installed("mmyolo"):
-        run(f'"{python}" -m mim install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
-
-    if not is_installed("mediapipe"):
-        run(f'"{python}" -m pip install protobuf>=3.20', desc="Installing protobuf", errdesc="Couldn't install protobuf")
-        run(f'"{python}" -m pip install mediapipe>=0.10.3', desc="Installing mediapipe", errdesc="Couldn't install mediapipe")
 
     bbox_path = os.path.join(dd_models_path, "bbox")
     segm_path = os.path.join(dd_models_path, "segm")
