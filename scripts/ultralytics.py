@@ -10,7 +10,7 @@ import os
 from modules import safe
 from PIL import Image
 
-def ultralytics_inference(image, model_path, conf_thres, label, classes=None, max_per_img=100, device="cpu"):
+def ultralytics_inference(image, model_path, conf_thres, label, classes=None, exclude_classes=None, max_per_img=100, device="cpu"):
     from ultralytics import YOLO
 
     safe_torch_load = torch.load
@@ -43,6 +43,7 @@ def ultralytics_inference(image, model_path, conf_thres, label, classes=None, ma
     bboxes = None
     scores = None
     labels = None
+    names = None
     masks = None
     if result.boxes is not None:
         bboxes = result.boxes.xyxy.cpu().numpy()
@@ -51,13 +52,36 @@ def ultralytics_inference(image, model_path, conf_thres, label, classes=None, ma
             labels = [f"{label}-{_classes[cls.astype(np.intp)]}" if cls < len(_classes) else f"{label}-{str(cls.astype(np.intp))}"
                         for cls in result.boxes.cls.cpu().numpy()
                      ] # labels with class
+            names = [f"{_classes[cls.astype(np.intp)]}" if cls < len(_classes) else f"{str(cls.astype(np.intp))}"
+                        for cls in result.boxes.cls.cpu().numpy()
+                    ]
         elif result.names is not None:
             labels = [f"{label}-{result.names[cls.astype(np.intp)]}" for cls in result.boxes.cls.cpu().numpy()] # has class names
+            names = [f"{result.names[cls.astype(np.intp)]}" for cls in result.boxes.cls.cpu().numpy()]
         else:
             labels = [f"{label}-{str(cls.astype(np.intp))}" for cls in result.boxes.cls.cpu().numpy()] # no class name given
 
     if result.masks is not None:
         masks = result.masks.xy
+
+    if exclude_classes is not None and names is not None:
+        _bboxes = []
+        _scores = []
+        _labels = []
+        _masks = [] if masks is not None else None
+        for j, name in enumerate(names):
+            if name not in exclude_classes:
+                _bboxes.append(bboxes[j])
+                _scores.append(scores[j])
+                _labels.append(labels[j])
+                if masks is not None:
+                    _masks.append(masks[j])
+
+        bboxes = _bboxes
+        scores = _scores
+        labels = _labels
+        if masks is not None:
+            masks = _masks
 
     segms = []
     if masks is not None:

@@ -673,7 +673,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
     def show_classes(self, modelname, classes):
         if modelname == "None" or "mediapipe_" in modelname:
-            return gr.update(visible=False, choices=[], value=[])
+            return gr.update(visible=False), gr.update(visible=False, choices=[], value=[])
 
         if "yolo/" in modelname:
             from ultralytics import YOLO
@@ -699,9 +699,9 @@ class MuDetectionDetailerScript(scripts.Script):
 
             if _classes is not None:
                 default = [_classes[0]] if _classes[0].lower() in ["person", "face", "hand", "human"] else []
-                return gr.update(visible=True, choices=["None"] + _classes, value=default)
+                return gr.update(visible=True), gr.update(visible=True, choices=["None"] + _classes, value=default)
 
-            return gr.update(visible=False, choices=[], value=[])
+            return gr.update(visible=False), gr.update(visible=False, choices=[], value=[])
 
         dataset = modeldataset(modelname)
         if dataset == "coco":
@@ -720,12 +720,12 @@ class MuDetectionDetailerScript(scripts.Script):
             if len(classes) > 0:
                 cls = list(set(classes) & set(all_classes))
                 if set(cls) == set(classes):
-                    return gr.update(visible=True, choices=["None"] + all_classes)
+                    return gr.update(visible=True), gr.update(visible=True, choices=["None"] + all_classes)
                 else:
-                    return gr.update(visible=True, choices=["None"] + all_classes, value=cls)
-            return gr.update(visible=True, choices=["None"] + all_classes, value=[all_classes[0]])
+                    return gr.update(visible=True), gr.update(visible=True, choices=["None"] + all_classes, value=cls)
+            return gr.update(visible=True), gr.update(visible=True, choices=["None"] + all_classes, value=[all_classes[0]])
         else:
-            return gr.update(visible=False, choices=[], value=[])
+            return gr.update(visible=False), gr.update(visible=False, choices=[], value=[])
 
     def ui(self, is_img2img):
         DD = MuDetectionDetailerScript
@@ -759,9 +759,15 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Group(), gr.Tabs():
                 with gr.Tab("Primary"):
                     with gr.Row():
-                        dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=default_model, visible=True, type="value")
-                        create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(False) + ["None"]},"mudd_refresh_model_a")
-                        dd_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
+                        with gr.Column():
+                            with gr.Row():
+                                dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=default_model, visible=True, type="value")
+                                create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(False) + ["None"]},"mudd_refresh_model_a")
+                        with gr.Column():
+                            with gr.Row():
+                                dd_not_classes_a = gr.Checkbox(value=False, label="Not classes", show_label=False, info="NOT", visible=False, scale=1, min_width=30, elem_classes=["not-button"])
+                                dd_sel_classes_a = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, scale=10, interactive=True, multiselect=True)
+                                dd_classes_a = gr.Dropdown(value=[], multiselect=True, visible=False)
                     with gr.Row():
                         use_prompt_edit = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=True, visible=True)
 
@@ -821,14 +827,29 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_model_a.change(
                         fn=self.show_classes,
                         inputs=[dd_model_a, dd_classes_a],
-                        outputs=[dd_classes_a],
+                        outputs=[dd_not_classes_a, dd_sel_classes_a],
                     )
+                    # simply prepend ["NOT"] to classes
+                    classes_args = dict(
+                        fn=lambda a, b: (["NOT"] if a else []) + b,
+                        inputs=[dd_not_classes_a, dd_sel_classes_a],
+                        outputs=[dd_classes_a],
+                        show_progress=False,
+                    )
+                    dd_sel_classes_a.change(**classes_args)
+                    dd_not_classes_a.change(**classes_args)
 
                 with gr.Tab("Secondary"):
                     with gr.Row():
-                        dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=True, type="value")
-                        create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(False)},"mudd_refresh_model_b")
-                        dd_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, interactive=True, multiselect=True)
+                        with gr.Column():
+                            with gr.Row():
+                                dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=True, type="value")
+                                create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(False)},"mudd_refresh_model_b")
+                        with gr.Column():
+                            with gr.Row():
+                                dd_not_classes_b = gr.Checkbox(value=False, label="Not classes", show_label=False, info="NOT", visible=False, scale=1, min_width=30, elem_classes=["not-button"])
+                                dd_sel_classes_b = gr.Dropdown(label="Object classes", choices=[], value=[], visible=False, scale=10, interactive=True, multiselect=True)
+                                dd_classes_b = gr.Dropdown(value=[], multiselect=True, visible=False)
                     with gr.Row():
                         use_prompt_edit_2 = gr.Checkbox(label="Use Prompt edit", elem_classes="prompt_edit_checkbox", value=False, interactive=False, visible=True)
 
@@ -889,8 +910,16 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_model_b.change(
                         fn=self.show_classes,
                         inputs=[dd_model_b, dd_classes_b],
-                        outputs=[dd_classes_b],
+                        outputs=[dd_not_classes_b, dd_sel_classes_b],
                     )
+                    classes_args = dict(
+                        fn=lambda a, b: (["NOT"] if a else []) + b,
+                        inputs=[dd_not_classes_b, dd_sel_classes_b],
+                        outputs=[dd_classes_b],
+                        show_progress=False,
+                    )
+                    dd_sel_classes_b.change(**classes_args)
+                    dd_not_classes_b.change(**classes_args)
 
             with gr.Group(visible=True) as options:
                 with gr.Accordion("Inpainting options", open=False):
@@ -1316,7 +1345,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_prompt, "MuDDetailer prompt"),
                 (dd_neg_prompt, "MuDDetailer neg prompt"),
                 (dd_model_a, "MuDDetailer model a"),
-                (dd_classes_a, "MuDDetailer classes a"),
+                (dd_not_classes_a, "MuDDetailer not classes a"),
+                (dd_sel_classes_a, "MuDDetailer classes a"),
                 (dd_conf_a, "MuDDetailer conf a"),
                 (dd_max_per_img_a, "MuDDetailer max detection a"),
                 (dd_detect_order_a, "MuDDetailer detect order a"),
@@ -1329,7 +1359,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_neg_prompt_2, "MuDDetailer neg prompt b"),
                 (dd_bitwise_op, "MuDDetailer bitwise"),
                 (dd_model_b, "MuDDetailer model b"),
-                (dd_classes_b, "MuDDetailer classes b"),
+                (dd_not_classes_b, "MuDDetailer not classes b"),
+                (dd_sel_classes_b, "MuDDetailer classes b"),
                 (dd_conf_b, "MuDDetailer conf b"),
                 (dd_max_per_img_b, "MuDDetailer max detection b"),
                 (dd_detect_order_b, "MuDDetailer detect order b"),
@@ -3360,27 +3391,68 @@ def get_device():
 # check validity of models
 check_validity()
 
+
+def prepare_classes(classes):
+    """check selected classes, exclude_mode"""
+    if type(classes) is str:
+        if classes.startswith("NOT") and classes.strip().find(" ") > 0:
+            classes = [c.strip() for c in ",".join(classes.strip().split(" ", 1)).split(",") if len(c) > 0]
+        elif classes.strip().find(",") > 0:
+            classes = [c.strip() for c in classes.strip().split(",") if len(c) > 0]
+        else:
+            classes = [classes.strip()]
+
+    if len(classes) == 0:
+        classes = None
+
+    exclude_classes = None
+    if classes is not None:
+        if "None" in classes:
+            classes.pop(classes.index("None")) # remove "None"
+
+        exclude_mode = False
+        if "NOT" in classes:
+            idx = classes.index("NOT")
+            exclude_mode = idx == 0 # only the first "NOT" regarded as exclude mode
+            classes.pop(idx)
+
+        if len(classes) == 0:
+            # "None" selected. in this case, get all dectected classes
+            classes = None
+
+        if classes:
+            classes = list(set(classes)) # remove duplicate, empty
+            if exclude_mode:
+                exclude_classes = classes
+                classes = None
+
+    return classes, exclude_classes
+
+
 def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100):
+
+    classes, exclude_classes = prepare_classes(classes)
+
     if modelname in ["mediapipe_face_short", "mediapipe_face_full"]:
-        results = mp_detector_face(image, modelname, conf_thres, label, classes, max_per_img)
+        results = mp_detector_face(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
         return results
     elif modelname in ["mediapipe_face_mesh"]:
-        results = mp_detector_facemesh(image, modelname, conf_thres, label, classes, max_per_img)
+        results = mp_detector_facemesh(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
         return results
 
     path = modelpath(modelname)
     if ( "mmdet" in path and "bbox" in path ):
-        results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes, max_per_img)
+        results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
     elif ( "mmdet" in path and "segm" in path):
-        results = inference_mmdet_segm(image, modelname, conf_thres, label, classes, max_per_img)
+        results = inference_mmdet_segm(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
     elif "yolo/" in path or "yolo\\" in path:
-        results = ultra_inference(image, path, conf_thres, label, classes, max_per_img, device=get_device())
+        results = ultra_inference(image, path, conf_thres, label, classes, exclude_classes, max_per_img, device=get_device())
     else:
         return [[], [], [], []]
     devices.torch_gc()
     return results
 
-def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_per_img):
+def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, exclude_classes=None, max_per_img=100):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -3460,19 +3532,13 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_p
 
     filter_inds = np.where(scores > conf_thres)[0]
 
-    # check selected classes
-    if type(sel_classes) is str:
-        sel_classes = [sel_classes]
-    if sel_classes is not None:
-        if len(sel_classes) == 0 or (len(sel_classes) == 1 and sel_classes[0] == "None"):
-            # "None" selected. in this case, get all dectected classes
-            sel_classes = None
-
     for i in filter_inds:
         lab = label
-        if sel_classes is not None and labels is not None and classes is not None:
+        if (sel_classes is not None or exclude_classes is not None) and labels is not None and classes is not None:
             cls = classes[labels[i]]
-            if cls not in sel_classes:
+            if sel_classes is not None and cls not in sel_classes:
+                continue
+            elif exclude_classes is not None and cls in exclude_classes:
                 continue
             lab += "-" + cls
         elif labels is not None and classes is not None:
@@ -3485,7 +3551,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, max_p
 
     return results
 
-def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_per_img):
+def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, exclude_classes=None, max_per_img=100):
     model_checkpoint = modelpath(modelname)
     model_config = os.path.splitext(model_checkpoint)[0] + ".py"
     model_device = get_device()
@@ -3551,9 +3617,11 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, max_p
 
     for i in filter_inds:
         lab = label
-        if sel_classes is not None and labels is not None and classes is not None:
+        if (sel_classes is not None or exclude_classes is not None) and labels is not None and classes is not None:
             cls = classes[labels[i]]
-            if cls not in sel_classes:
+            if sel_classes is not None and cls not in sel_classes:
+                continue
+            elif exclude_classes is not None and cls in exclude_classes:
                 continue
             lab += "-" + cls
         elif labels is not None and classes is not None:
@@ -3656,6 +3724,12 @@ def on_infotext_pasted(infotext, results):
             if v[0] == '"' and v[-1] == '"':
                 v = v[1:-1]
             arr = v.split(",")
+            # setup NOT classes checkbox controls
+            if "NOT" in arr and arr[0] == "NOT":
+                arr.pop(0)
+                updates[k.replace(" classes ", " not classes ")] = True
+            else:
+                updates[k.replace(" classes ", " not classes ")] = False
             updates[k] = arr
 
         # fix inpaint a,b overriding options

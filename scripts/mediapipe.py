@@ -10,6 +10,7 @@ def mediapipe_detector_face(image,
                             confidence,
                             label,
                             classes=None,
+                            exclude_classes=None,
                             max_num_faces=100):
     if modelname == "mediapipe_face_short":
         model_selection = 0
@@ -71,6 +72,7 @@ def mediapipe_detector_facemesh(image,
                                 confidence,
                                 label,
                                 classes=None,
+                                exclude_classes=None,
                                 max_num_faces=100):
     mp_facemesh = mp.solutions.face_mesh
     mp_drawing = mp.solutions.drawing_utils
