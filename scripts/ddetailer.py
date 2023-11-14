@@ -711,7 +711,6 @@ class MuDetectionDetailerScript(scripts.Script):
                 model = torch.load(path, map_location="cpu")
                 if "meta" in model and "CLASSES" in model["meta"]:
                     all_classes = list(model["meta"].get("CLASSES", ("None",)))
-                    print("meta classes =", all_classes)
                 del model
 
             if all_classes is None:
