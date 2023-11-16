@@ -12,6 +12,7 @@ import requests
 import shutil
 from tqdm import tqdm
 import torch
+from collections import OrderedDict
 from fastapi import FastAPI
 from pathlib import Path
 
@@ -37,6 +38,9 @@ dd_models_path = os.path.join(models_path, "mmdet")
 dd_yolo_path = os.path.join(models_path, "yolo")
 
 scriptdir = scripts.basedir()
+
+# model caches
+model_loaded = OrderedDict()
 
 models_list = {}
 models_alias = {}
@@ -3413,6 +3417,19 @@ def prepare_classes(classes):
     return classes, exclude_classes
 
 
+def gc_model_cache():
+    while len(model_loaded) > 2:
+        model = model_loaded.popitem(last=False)
+        print(" - remove loaded model...")
+        del model
+
+
+def clear_model_cache():
+    model_loaded.clear()
+    gc.collect()
+    devices.torch_gc()
+
+
 def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100):
 
     classes, exclude_classes = prepare_classes(classes)
@@ -3427,8 +3444,10 @@ def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100
     path = modelpath(modelname)
     if ( "mmdet" in path and "bbox" in path ):
         results = inference_mmdet_bbox(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
+        gc_model_cache()
     elif ( "mmdet" in path and "segm" in path):
         results = inference_mmdet_segm(image, modelname, conf_thres, label, classes, exclude_classes, max_per_img)
+        gc_model_cache()
     elif "yolo/" in path or "yolo\\" in path:
         results = ultra_inference(image, path, conf_thres, label, classes, exclude_classes, max_per_img, device=get_device())
     else:
@@ -3451,8 +3470,16 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, exclu
 
     segms = []
     bboxes = []
+    modelkey = hash(f"{dict(conf) | dict(modelname=modelname, classes=sel_classes)}")
     if mmcv_legacy:
-        model = init_detector(conf, model_checkpoint, device=model_device)
+        if model_loaded.get(modelkey, None) is None:
+            model = init_detector(conf, model_checkpoint, device=model_device)
+            model_loaded[modelkey] = model
+        else:
+            print(" - load cached model...")
+            model = model_loaded[modelkey]
+            model.to(model_device)
+
         results = inference_detector(model, np.array(image))
 
         if type(results) is dict:
@@ -3475,7 +3502,14 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, exclu
         scores = bboxes[:, 4]
         bboxes = bboxes[:, :4]
     else:
-        model = init_detector(conf, model_checkpoint, palette="random", device=model_device)
+        if model_loaded.get(modelkey, None) is None:
+            model = init_detector(conf, model_checkpoint, palette="random", device=model_device)
+            model_loaded[modelkey] = model
+        else:
+            print(" - load cached model...")
+            model = model_loaded[modelkey]
+            model.to(model_device)
+
         results = inference_detector(model, np.array(image)).pred_instances
         bboxes = results.bboxes.cpu().numpy()
         labels = results.labels
@@ -3499,6 +3533,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, exclu
     n, m = bboxes.shape
     results = [[], [], [], []]
     if (n == 0):
+        model.to(devices.cpu)
         return results
 
     # get classes info from metadata
@@ -3533,6 +3568,7 @@ def inference_mmdet_segm(image, modelname, conf_thres, label, sel_classes, exclu
         results[2].append(segms[i])
         results[3].append(scores[i])
 
+    model.to(devices.cpu)
     return results
 
 def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, exclude_classes=None, max_per_img=100):
@@ -3548,11 +3584,26 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, exclu
     # setup default values
     conf.merge_from_dict(dict(model=dict(test_cfg=dict(score_thr=conf_thres, max_per_img=max_per_img))))
 
+    modelkey = hash(f"{dict(conf) | dict(modelname=modelname, classes=sel_classes)}")
     if mmcv_legacy:
-        model = init_detector(conf, model_checkpoint, device=model_device)
+        if model_loaded.get(modelkey, None) is None:
+            model = init_detector(conf, model_checkpoint, device=model_device)
+            model_loaded[modelkey] = model
+        else:
+            print(" - load cached model...")
+            model = model_loaded[modelkey]
+            model.to(model_device)
+
         results = inference_detector(model, np.array(image))
     else:
-        model = init_detector(conf, model_checkpoint, device=model_device, palette="random")
+        if model_loaded.get(modelkey, None) is None:
+            model = init_detector(conf, model_checkpoint, device=model_device, palette="random")
+            model_loaded[modelkey] = model
+        else:
+            print(" - load cached model...")
+            model = model_loaded[modelkey]
+            model.to(model_device)
+
         results = inference_detector(model, np.array(image)).pred_instances
 
     bboxes = []
@@ -3574,6 +3625,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, exclu
     n, m = bboxes.shape
     results = [[], [], [], []]
     if (n == 0):
+        model.to(devices.cpu)
         return results
 
     # get classes info from metadata
@@ -3615,6 +3667,7 @@ def inference_mmdet_bbox(image, modelname, conf_thres, label, sel_classes, exclu
         results[1].append(bboxes[i])
         results[3].append(scores[i])
 
+    model.to(devices.cpu)
     return results
 
 def on_infotext_pasted(infotext, results):
@@ -3758,3 +3811,4 @@ def muddetailer_api(_: gr.Blocks, app: FastAPI):
 script_callbacks.on_ui_settings(on_ui_settings)
 script_callbacks.on_infotext_pasted(on_infotext_pasted)
 script_callbacks.on_app_started(muddetailer_api)
+script_callbacks.on_script_unloaded(clear_model_cache)
