@@ -42,6 +42,15 @@ scriptdir = scripts.basedir()
 # model caches
 model_loaded = OrderedDict()
 
+# check mmyolo compatibility
+use_mmyolo = False
+try:
+    import mmyolo
+    use_mmyolo = True
+except:
+    print("mmyolo may not work correctly")
+
+
 models_list = {}
 models_alias = {}
 def list_models(real=True):
@@ -117,9 +126,14 @@ def list_models(real=True):
             # not reach
             return 1000
 
+        if not use_mmyolo:
+            excluded = [m for m in models if "yolov8" in m and "bbox" in m]
+            models = list(set(models) - set(excluded))
+
         if real is False:
             models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
             models = sorted(models, key=sortkey)
+
         return models
 
 
@@ -740,6 +754,12 @@ class MuDetectionDetailerScript(scripts.Script):
 
             model_list = list_models(False)
             default_model = match_modelname("face_yolov8n.pth")
+            if default_model is None:
+                default_model = match_modelname("face_yolov8n.pt")
+            if default_model is None:
+                default_model = match_modelname("mmdet_anime-face_yolov3.pth")
+            print(" - default µ DDetailer model=", default_model)
+
             if is_img2img:
                 gr.HTML("<p style=\"margin-bottom:0.75em\">Recommended settings: Use from inpaint tab, inpaint only masked ON, denoise &lt; 0.5</p>")
             else:
@@ -3056,7 +3076,9 @@ def match_modelname(modelname):
         for model in model_list:
             if modelname in model:
                 tmp = model.split(" ")[0]
-                if modelname == tmp.split("/")[-1]:
+                if "/" in modelname and modelname == tmp:
+                    modelname = model
+                elif modelname == tmp.split("/")[-1]:
                     modelname = model
                     break
 

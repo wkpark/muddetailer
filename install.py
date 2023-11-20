@@ -43,8 +43,11 @@ def install():
             print("Installing mmcv, mmdet, mmengine...")
             if not is_installed("mmengine"):
                 run_pip(f"install mmengine==0.8.5", desc="mmengine")
-            # mmyolo depends on mmcv==2.0.0
-            run(f'"{python}" -m mim install mmcv~=2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
+            # mmyolo depends on mmcv==2.0.0 but pytorch 2.1.0 only work with mmcv 2.1.0
+            if version.parse(torch.__version__) >= version.parse("2.1.0"):
+                run(f'"{python}" -m mim install mmcv~=2.1.0', desc="Installing mmcv", errdesc="Couldn't install mmcv 2.1.0")
+            else:
+                run(f'"{python}" -m mim install mmcv~=2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
             run(f'"{python}" -m mim install -U mmdet>=3.0.0', desc="Installing mmdet", errdesc="Couldn't install mmdet")
 
             run_pip(f"install mmdet>=3", desc="mmdet")
