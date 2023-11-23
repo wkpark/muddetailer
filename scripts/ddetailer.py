@@ -7,6 +7,7 @@ from PIL import Image, ImageColor
 import math
 import numpy as np
 import gradio as gr
+import importlib
 import json
 import requests
 import shutil
@@ -42,13 +43,46 @@ scriptdir = scripts.basedir()
 # model caches
 model_loaded = OrderedDict()
 
-# check mmyolo compatibility
-use_mmyolo = False
+
+# check mmdet compatibility
+mmcv_legacy = None
+use_mmdet = True
 try:
-    import mmyolo
-    use_mmyolo = True
-except:
-    print("mmyolo may not work correctly")
+    import mmcv
+except Exception as e:
+    print(f"\033[91mERROR\033[0m - failed to import mmcv - {e}")
+    use_mmdet = False
+
+# check mmyolo, mmdet version
+use_mmyolo = False
+if use_mmdet:
+    # check mmyolo compatibility
+    try:
+        import mmyolo
+        use_mmyolo = True
+    except Exception as e:
+        print(f"\033[91mERROR\033[0m - failed to import mmyolo - {e}")
+
+    # check mmdet version
+    try:
+        from mmdet.core import get_classes
+        from mmdet.apis import inference_detector, init_detector
+        from mmcv import Config
+        mmcv_legacy = True
+    except ImportError:
+        try:
+            from mmdet.evaluation import get_classes
+            from mmdet.apis import inference_detector, init_detector
+            from mmengine.config import Config
+            mmcv_legacy = False
+        except:
+            print(f"\033[91mERROR\033[0m - failed to import mmdet - {e}")
+
+# check ultralytics
+ultralytics_spec = importlib.util.find_spec("ultralytics")
+use_ultralytics = ultralytics_spec is not None
+if not use_ultralytics:
+    print("\033[93mWarning\033[0m - ultralytics for yolov8 is not available.")
 
 
 models_list = {}
@@ -125,6 +159,14 @@ def list_models(real=True):
                     return j * 100 + 4*10
             # not reach
             return 1000
+
+        if not use_mmdet:
+            excluded = [m for m in models if "mmdet/" in m]
+            models = list(set(models) - set(excluded))
+
+        if not use_ultralytics:
+            excluded = [m for m in models if "yolo/" in m]
+            models = list(set(models) - set(excluded))
 
         if not use_mmyolo:
             excluded = [m for m in models if "yolov8" in m and "bbox" in m]
@@ -758,6 +800,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 default_model = match_modelname("face_yolov8n.pt")
             if default_model is None:
                 default_model = match_modelname("mmdet_anime-face_yolov3.pth")
+            if default_model is None:
+                default_model = "mediapipe_face_short"
             print(" - default µ DDetailer model=", default_model)
 
             if is_img2img:
@@ -3317,20 +3361,6 @@ def create_polyline_from_segms(segms):
         #polygons = [np.array(polygon).squeeze() for polygon in contours]
         polys.append(polygons)
     return polys
-
-
-import mmcv
-
-try:
-    from mmdet.core import get_classes
-    from mmdet.apis import inference_detector, init_detector
-    from mmcv import Config
-    mmcv_legacy = True
-except ImportError:
-    from mmdet.evaluation import get_classes
-    from mmdet.apis import inference_detector, init_detector
-    from mmengine.config import Config
-    mmcv_legacy = False
 
 
 def check_validity():
