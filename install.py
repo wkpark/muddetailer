@@ -1,13 +1,13 @@
 import os
 import platform
 import sys
-import torch
 
 from packaging import version
 from pathlib import Path
 
 import launch
 from launch import is_installed, run, run_pip
+import importlib.metadata
 
 try:
     skip_install = getattr(launch.args, "skip_install")
@@ -21,13 +21,15 @@ def install():
     if not is_installed("mim"):
         run_pip("install -U openmim", desc="openmim")
 
-    legacy = torch.__version__.split(".")[0] < "2"
+    torch_version = importlib.metadata.version("torch")
+    legacy = None
+    if torch_version:
+        legacy = torch_version.split(".")[0] < "2"
+
+    mmdet_version = importlib.metadata.version("mmdet")
     mmdet_v3 = None
-    try:
-        import mmdet
-        mmdet_v3 = version.parse(mmdet.__version__) >= version.parse("3.0.0")
-    except Exception:
-        pass
+    if mmdet_version:
+        mmdet_v3 = version.parse(mmdet_version) >= version.parse("3.0.0")
 
     if not is_installed("mmdet") or (legacy and mmdet_v3) or (not legacy and not mmdet_v3):
         if legacy:
@@ -44,7 +46,7 @@ def install():
             if not is_installed("mmengine"):
                 run_pip(f"install mmengine==0.8.5", desc="mmengine")
             # mmyolo depends on mmcv==2.0.0 but pytorch 2.1.0 only work with mmcv 2.1.0
-            if version.parse(torch.__version__) >= version.parse("2.1.0"):
+            if version.parse(torch_version) >= version.parse("2.1.0"):
                 run(f'"{python}" -m mim install mmcv~=2.1.0', desc="Installing mmcv", errdesc="Couldn't install mmcv 2.1.0")
             else:
                 run(f'"{python}" -m mim install mmcv~=2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
@@ -52,29 +54,25 @@ def install():
 
             run_pip(f"install mmdet>=3", desc="mmdet")
 
-    print("Check mmcv version...")
-    try:
-        import mmcv
-        if version.parse(mmcv.__version__) >= version.parse("2.0.1"):
-            print(f"Your mmcv version {mmengine.__version__} may not work mmyolo.")
+    mmcv_version = importlib.metadata.version("mmcv")
+    if mmcv_version:
+        print("Check mmcv version...")
+        if version.parse(mmcv_version) >= version.parse("2.0.1"):
+            print(f"Your mmcv version {mmcv_version} may not work mmyolo.")
             print("Please install mmcv version 2.0.0 manually or uninstall mmcv and restart UI again to install mmcv 2.0.0")
-    except Exception:
-        pass
 
-    print("Check mmengine version...")
-    try:
-        import mmengine
-        if version.parse(mmengine.__version__) >= version.parse("0.9.0"):
-            print(f"Your mmengine version {mmengine.__version__} may not work windows...")
+    mmengine_version = importlib.metadata.version("mmengine")
+    if mmengine_version:
+        print("Check mmengine version...")
+        if version.parse(mmengine_version) >= version.parse("0.9.0"):
+            print(f"Your mmengine version {mmengine_version} may not work windows...")
             print("Please install mmengine 0.8.5 manually or install windows enabled un-official patched version of bitsandbytes with")
             #print("Uninstalling mmengine...")
             #run(f'"{python}" -m pip uninstall -y mmengine', live=True)
             #print("Installing mmengine 0.8.5...")
             #run_pip(f"install mmengine==0.8.5", desc="mmengine")
         else:
-            print(f"your mmengine version is {mmengine.__version__}")
-    except Exception:
-        pass
+            print(f"your mmengine version is {mmengine_version}")
 
     if not legacy and not is_installed("mmyolo"):
         run(f'"{python}" -m mim install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
