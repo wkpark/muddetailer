@@ -21,13 +21,22 @@ def install():
     if not is_installed("mim"):
         run_pip("install -U openmim", desc="openmim")
 
+    # minimal requirement
+    if not is_installed("mediapipe"):
+        run_pip(f'install protobuf>=3.20')
+        run_pip(f'install mediapipe>=0.10.3')
+
     torch_version = importlib.metadata.version("torch")
     legacy = None
     if torch_version:
         legacy = torch_version.split(".")[0] < "2"
 
-    mmdet_version = importlib.metadata.version("mmdet")
     mmdet_v3 = None
+    mmdet_version = None
+    try:
+        mmdet_version = importlib.metadata.version("mmdet")
+    except Exception:
+        pass
     if mmdet_version:
         mmdet_v3 = version.parse(mmdet_version) >= version.parse("3.0.0")
 
@@ -54,14 +63,22 @@ def install():
 
             run_pip(f"install mmdet>=3", desc="mmdet")
 
-    mmcv_version = importlib.metadata.version("mmcv")
+    mmcv_version = None
+    try:
+        mmcv_version = importlib.metadata.version("mmcv")
+    except Exception:
+        pass
     if mmcv_version:
         print("Check mmcv version...")
         if version.parse(mmcv_version) >= version.parse("2.0.1"):
             print(f"Your mmcv version {mmcv_version} may not work mmyolo.")
             print("Please install mmcv version 2.0.0 manually or uninstall mmcv and restart UI again to install mmcv 2.0.0")
 
-    mmengine_version = importlib.metadata.version("mmengine")
+    mmengine_version = None
+    try:
+        mmengine_version = importlib.metadata.version("mmengine")
+    except Exception:
+        pass
     if mmengine_version:
         print("Check mmengine version...")
         if version.parse(mmengine_version) >= version.parse("0.9.0"):
@@ -76,10 +93,6 @@ def install():
 
     if not legacy and not is_installed("mmyolo"):
         run(f'"{python}" -m mim install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
-
-    if not is_installed("mediapipe"):
-        run_pip(f'install protobuf>=3.20')
-        run_pip(f'install mediapipe>=0.10.3')
 
 
     req_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "requirements.txt")
