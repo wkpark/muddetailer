@@ -1307,7 +1307,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     with gr.Row():
                         download_status = gr.Textbox(visible=True, label="message")
 
-                    def downloader(modelurl, destdir, filename, progress=gr.Progress(track_tqdm=True)):
+                    def downloader(modelurl, destdir, filename): #, progress=gr.Progress(track_tqdm=False)):
                         if not os.path.exists(destdir):
                             os.mkdir(destdir)
 
