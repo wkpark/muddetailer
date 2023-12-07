@@ -3853,14 +3853,14 @@ def on_infotext_pasted(infotext, results):
     results.update(updates)
 
 def api_version():
-    return "1.0.0"
+    return "1.0.1"
 
 def muddetailer_api(_: gr.Blocks, app: FastAPI):
-    @app.get("/muddetailer/version")
+    @app.get("/uddetailer/version")
     async def version():
         return {"version": api_version()}
 
-    @app.get("/muddetailer/model_list")
+    @app.get("/uddetailer/model_list")
     async def model_list(update: bool = True):
         list_model = list_models()
         return {"model_list": list_model}
