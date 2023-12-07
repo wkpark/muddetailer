@@ -96,13 +96,14 @@ def get_cn_controls(states):
         # not found?
         return None
 
-    control_mode = cn_states.get("control_model", external_code.ControlMode.BALANCED)
+    control_mode = cn_states.get("control_mode", external_code.ControlMode.BALANCED)
+    control_size = cn_states.get("control_size", external_code.ResizeMode.RESIZE)
     weight = cn_states.get("weight", 1)
     guidance_start = cn_states.get("guidance_start", 0)
     guidance_end = cn_states.get("guidance_end", 1)
     pixel_perfect = cn_states.get("pixel_perfect", True)
 
-    return [model, module, weight, guidance_start, guidance_end, control_mode, pixel_perfect]
+    return [model, module, weight, guidance_start, guidance_end, control_mode, control_size, pixel_perfect]
 
 
 def get_cn_extra_params(states):
@@ -137,11 +138,17 @@ def get_cn_extra_params(states):
         # not found?
         pass
 
-    control_mode = cn_states.get("control_model", external_code.ControlMode.BALANCED)
+    control_mode = cn_states.get("control_mode", external_code.ControlMode.BALANCED)
+    resize_mode = cn_states.get("resize_mode", external_code.ResizeMode.RESIZE)
     weight = cn_states.get("weight", 1)
     guidance_start = cn_states.get("guidance_start", 0)
     guidance_end = cn_states.get("guidance_end", 1)
     pixel_perfect = cn_states.get("pixel_perfect", True)
+
+    if isinstance(control_mode, str):
+        control_mode = external_code.control_mode_from_value(control_mode)
+    if isinstance(resize_mode, str):
+        resize_mode = external_code.resize_mode_from_value(resize_mode)
 
     params = {
         "Model": model,
@@ -151,27 +158,42 @@ def get_cn_extra_params(states):
         "Guidance End": guidance_end,
         "Pixel Perfect": pixel_perfect,
         "Control Mode": control_mode,
+        "Resize Mode": resize_mode,
     }
 
     return params
 
 
-def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, control_mode=None, pixel_perfect=True):
+def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, control_mode=None, resize_mode=None, pixel_perfect=True):
     global external_code, cn_extension
 
     if cn_extension is None or external_code is None:
         return None
 
     control_mode = external_code.ControlMode.BALANCED if control_mode is None else control_mode
+    resize_mode = external_code.ResizeMode.RESIZE if resize_mode is None else resize_mode
     return external_code.ControlNetUnit(
         model=model,
         module=module,
         weight=weight,
         control_mode=control_mode,
+        resize_mode=resize_mode,
         guidance_start=guidance_start,
         guidance_end=guidance_end,
         pixel_perfect=pixel_perfect,
     )
+
+
+def cn_control_mode(mode):
+    if mode in ("BALANCED", "PROMPT", "CONTROL"):
+        return external_code.ControlMode[mode]
+    return external_code.control_mode_from_value(mode)
+
+
+def cn_resize_mode(mode):
+    if mode in ("RESIZE", "INNER_FIT", "OUTER_FIT"):
+        return external_code.ResizeMode[mode]
+    return external_code.resize_mode_from_value(mode)
 
 
 def cn_control_ui(is_img2img=False):
@@ -284,7 +306,7 @@ def cn_control_ui(is_img2img=False):
     value = ""
     choices = []
     if external_code:
-        choices=[e.value for e in external_code.ControlMode]
+        choices=[(e.value, e) for e in external_code.ControlMode]
         value=external_code.ControlMode.BALANCED.value
     control_mode = gr.Radio(
         choices=choices,
@@ -295,7 +317,21 @@ def cn_control_ui(is_img2img=False):
         elem_classes="controlnet_control_mode_radio",
     )
 
-    return model, module, weight, guidance_start, guidance_end, control_mode, pixel_perfect
+    value = ""
+    choices = []
+    if external_code:
+        choices=[(e.value, e) for e in external_code.ResizeMode]
+        value=external_code.ResizeMode.RESIZE.value
+    resize_mode = gr.Radio(
+        choices=choices,
+        value=value,
+        label="Resize Mode",
+        visible=external_code is not None,
+        #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_resize_mode_radio",
+        elem_classes="controlnet_resize_mode_radio",
+    )
+
+    return model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect
 
 
 def _disable_controlnet_units(p):

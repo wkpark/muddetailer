@@ -1090,7 +1090,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             with gr.Group(visible=True) as controlnet_ui:
                 with gr.Accordion("ControlNet options", open=False):
-                    cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
+                    cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
 
             with gr.Group() as extra_helpers:
                 with gr.Accordion("NSFW censor options", open=False) as tools:
@@ -1440,15 +1440,17 @@ class MuDetectionDetailerScript(scripts.Script):
             )
 
             # additional ControlNet extra params
-            self.infotext_fields = self._infotext_fields + (
-                (cn_model, "MuDDetailer CN Model"),
-                (cn_module_, "MuDDetailer CN Module"),
-                (cn_weight, "MuDDetailer CN Weight"),
-                (cn_guidance_start, "MuDDetailer CN Guidance Start"),
-                (cn_guidance_end, "MuDDetailer CN Guidance End"),
-                (cn_control_mode, lambda d: gr.update(value=cn_module.external_code.ControlMode[d.get("MuDDetailer CN Control Mode", 'BALANCED')])),
-                (cn_pixel_perfect, "MuDDetailer CN Pixel Perfect"),
-            )
+            if cn_module.external_code:
+                self.infotext_fields = self._infotext_fields + (
+                    (cn_model, "MuDDetailer CN Model"),
+                    (cn_module_, "MuDDetailer CN Module"),
+                    (cn_weight, "MuDDetailer CN Weight"),
+                    (cn_guidance_start, "MuDDetailer CN Guidance Start"),
+                    (cn_guidance_end, "MuDDetailer CN Guidance End"),
+                    (cn_pixel_perfect, "MuDDetailer CN Pixel Perfect"),
+                    (cn_control_mode, lambda d: gr.update(value=cn_module.cn_control_mode(d.get("MuDDetailer CN Control Mode", 'Balanced')))),
+                    (cn_resize_mode, lambda d: gr.update(value=cn_module.cn_resize_mode(d.get("MuDDetailer CN Resize Mode", 'Just Resize')))),
+                )
 
             dd_model_b.change(
                 lambda modelname: {
@@ -1656,7 +1658,7 @@ class MuDetectionDetailerScript(scripts.Script):
             return components
 
         def prepare_states(states, inpainting_options_a, inpainting_options_b,
-                model, module, weight, guidance_start, guidance_end, control_mode, pixel_perfect,
+                model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect,
                 use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
             style = {}
             if use_blur:
@@ -1679,6 +1681,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 "guidance_start": guidance_start,
                 "guidance_end": guidance_end,
                 "control_mode": control_mode,
+                "resize_mode": resize_mode,
                 "pixel_perfect": pixel_perfect,
             }
 
@@ -1693,7 +1696,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         # prepare some extra stuff
         # controlnet
-        cn_controls = [cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_pixel_perfect]
+        cn_controls = [cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect]
         generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
         prepare_args = dict(
             fn=prepare_states,
@@ -3836,6 +3839,8 @@ def on_infotext_pasted(infotext, results):
             for kk, vv in params.items():
                 if "Control Mode" in kk:
                     vv = vv.replace("ControlMode.", "")
+                if "Resize Mode" in kk:
+                    vv = vv.replace("ResizeMode.", "")
                 kk = "MuDDetailer CN " + kk
                 updates[kk] = vv
 
