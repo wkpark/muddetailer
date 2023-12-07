@@ -284,8 +284,8 @@ def cn_control_ui(is_img2img=False):
     value = ""
     choices = []
     if external_code:
-        choices=[e.value for e in external_code.ControlMode],
-        value=external_code.ControlMode.BALANCED.value,
+        choices=[e.value for e in external_code.ControlMode]
+        value=external_code.ControlMode.BALANCED.value
     control_mode = gr.Radio(
         choices=choices,
         value=value,
