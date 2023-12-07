@@ -47,7 +47,7 @@ def get_cn_models(update=False, types="inpaint,canny,depth,openpose,lineart,soft
 def get_cn_modules(types="inpaint,canny,depth,openpose,lineart,softedge,scribble,tile"):
     global external_code, cn_extension
 
-    if cn_extension is None:
+    if cn_extension is None or external_code is None:
         return ["None"]
 
     if type(types) is str:
@@ -159,7 +159,7 @@ def get_cn_extra_params(states):
 def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, control_mode=None, pixel_perfect=True):
     global external_code, cn_extension
 
-    if cn_extension is None:
+    if cn_extension is None or external_code is None:
         return None
 
     control_mode = external_code.ControlMode.BALANCED if control_mode is None else control_mode
@@ -177,11 +177,17 @@ def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, contro
 def cn_control_ui(is_img2img=False):
     global external_code
 
+    with gr.Row():
+         gr.HTML("<p>ControlNet is not available. Please enable ControlNet or install it.</p>", visible=external_code is None)
+
+    interactive = external_code is not None
+
     with gr.Column(variant="compact"):
         with gr.Row():
             pixel_perfect = gr.Checkbox(
                 label="Pixel Perfect",
                 value=True,
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_pixel_perfect_checkbox",
             )
 
@@ -190,12 +196,14 @@ def cn_control_ui(is_img2img=False):
                 choices=get_cn_modules(),
                 label=f"Preprocessor",
                 value="None",
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_preprocessor_dropdown",
             )
             model = gr.Dropdown(
                 get_cn_models(),
                 label=f"Model",
                 value="None",
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_model_dropdown",
             )
             create_refresh_button(model, lambda: None , lambda: {"choices": get_cn_models(True)}, "mudd_refresh_cn_models")
@@ -251,6 +259,7 @@ def cn_control_ui(is_img2img=False):
                 minimum=0.0,
                 maximum=2.0,
                 step=0.05,
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_control_weight_slider",
                 elem_classes="controlnet_control_weight_slider",
             )
@@ -259,7 +268,7 @@ def cn_control_ui(is_img2img=False):
                 value=0,
                 minimum=0.0,
                 maximum=1.0,
-                interactive=True,
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_start_control_step_slider",
                 elem_classes="controlnet_start_control_step_slider",
             )
@@ -268,14 +277,20 @@ def cn_control_ui(is_img2img=False):
                 value=1,
                 minimum=0.0,
                 maximum=1.0,
-                interactive=True,
+                interactive=interactive,
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_ending_control_step_slider",
                 elem_classes="controlnet_ending_control_step_slider",
             )
-    control_mode = gr.Radio(
+    value = ""
+    choices = []
+    if external_code:
         choices=[e.value for e in external_code.ControlMode],
         value=external_code.ControlMode.BALANCED.value,
+    control_mode = gr.Radio(
+        choices=choices,
+        value=value,
         label="Control Mode",
+        visible=external_code is not None,
         #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_control_mode_radio",
         elem_classes="controlnet_control_mode_radio",
     )
