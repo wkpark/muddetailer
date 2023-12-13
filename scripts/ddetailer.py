@@ -2228,7 +2228,7 @@ class MuDetectionDetailerScript(scripts.Script):
             img2img.process_batch = getattr(img2img, "__controlnet_original_process_batch")
 
         # save
-        p.cn_allow_script_control = None
+        p._cn_allow_script_control = None
         if "control_net_allow_script_control" in shared.opts.data:
             p._cn_allow_script_control = shared.opts.data["control_net_allow_script_control"]
             shared.opts.data["control_net_allow_script_control"] = True
@@ -2236,14 +2236,14 @@ class MuDetectionDetailerScript(scripts.Script):
 
     @staticmethod
     def cn_hijack_redo(p):
-        if p._cn_process:
+        if getattr(p, "_cn_process", None):
             processing.process_images_inner = p._cn_process
-        if p._cn_img2img:
+        if getattr(p, "_cn_img2img", None):
             img2img.process_batch = p._cn_img2img
 
         # restore
-        if p._cn_allow_script_control is not None:
-            shared.opts.data["control_net_allow_script_control"] = p.cn_allow_script_control
+        if getattr(p, "_cn_allow_script_control", None) is not None:
+            shared.opts.data["control_net_allow_script_control"] = p._cn_allow_script_control
 
     def process(self, p, *args):
         if getattr(p, "_disable_muddetailer", False):

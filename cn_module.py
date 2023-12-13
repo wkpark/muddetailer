@@ -113,6 +113,9 @@ def get_cn_extra_params(states):
     if cn_states is None:
         return None
 
+    if external_code is None:
+        return None
+
     model = cn_states.get("model", "None")
     module = cn_states.get("module", "None")
 
