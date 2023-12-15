@@ -17,9 +17,7 @@ from collections import OrderedDict
 from fastapi import FastAPI
 from pathlib import Path
 
-from scripts.mediapipe import mediapipe_detector_face as mp_detector_face
-from scripts.mediapipe import mediapipe_detector_facemesh as mp_detector_facemesh
-from scripts.ultralytics import ultralytics_inference as ultra_inference
+import scripts.detectors
 
 from copy import copy, deepcopy
 from modules import processing, images, img2img
@@ -47,6 +45,10 @@ model_loaded = OrderedDict()
 # check mmdet compatibility
 mmcv_legacy = None
 use_mmdet = True
+use_mmyolo = False
+use_ultralytics = False
+
+
 try:
     import mmcv
 except Exception as e:
@@ -87,9 +89,13 @@ if not use_ultralytics:
 
 models_list = {}
 models_alias = {}
-def list_models(real=True):
-        model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
-        model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
+model_list = None
+def list_models(real=True, refresh=False):
+        global model_list
+
+        if refresh or model_list is None:
+            model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
+            model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
 
         def modeltitle(path, shorthash=None):
             abspath = os.path.abspath(path)
@@ -293,8 +299,15 @@ def startup():
 
         break
 
+    # check validity of models
+    check_validity()
+
+    check = shared.opts.data.get("mudd_check_validity", True)
+    if not check:
+        return
+
     print("Check config files...")
-    config_dir = os.path.join(scripts.basedir(), "config")
+    config_dir = os.path.join(scriptdir, "config")
     if legacy:
         configs = [ "mmdet_anime-face_yolov3.py", "mmdet_dd-person_mask2former.py" ]
     else:
@@ -329,8 +342,6 @@ def startup():
                 shutil.copy(confpy, destdir)
 
     print("Done")
-
-startup()
 
 def gr_show(visible=True):
     return {"visible": visible, "__type__": "update"}
@@ -814,7 +825,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         with gr.Column():
                             with gr.Row():
                                 dd_model_a = gr.Dropdown(label="Primary detection model (A):", choices=["None"] + model_list, value=default_model, visible=True, type="value")
-                                create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(False) + ["None"]},"mudd_refresh_model_a")
+                                create_refresh_button(dd_model_a, lambda: None, lambda: {"choices": list_models(False, True) + ["None"]},"mudd_refresh_model_a")
                         with gr.Column():
                             with gr.Row():
                                 dd_not_classes_a = gr.Checkbox(value=False, label="Not classes", show_label=False, info="NOT", visible=False, scale=1, min_width=30, elem_classes=["not-button"])
@@ -896,7 +907,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         with gr.Column():
                             with gr.Row():
                                 dd_model_b = gr.Dropdown(label="Secondary detection model (B) (optional):", choices=["None"] + model_list, value="None", visible=True, type="value")
-                                create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(False)},"mudd_refresh_model_b")
+                                create_refresh_button(dd_model_b, lambda: None, lambda: {"choices": ["None"] + list_models(False, True)},"mudd_refresh_model_b")
                         with gr.Column():
                             with gr.Row():
                                 dd_not_classes_b = gr.Checkbox(value=False, label="Not classes", show_label=False, info="NOT", visible=False, scale=1, min_width=30, elem_classes=["not-button"])
@@ -3431,9 +3442,6 @@ def get_device():
 
     return device
 
-# check validity of models
-check_validity()
-
 
 def prepare_classes(classes):
     """check selected classes, exclude_mode"""
@@ -3486,6 +3494,9 @@ def clear_model_cache():
 
 
 def inference(image, modelname, conf_thres, label, classes=None, max_per_img=100):
+    from scripts.detectors.mediapipe import mediapipe_detector_face as mp_detector_face
+    from scripts.detectors.mediapipe import mediapipe_detector_facemesh as mp_detector_facemesh
+    from scripts.detectors.ultralytics import ultralytics_inference as ultra_inference
 
     classes, exclude_classes = prepare_classes(classes)
 
@@ -3869,3 +3880,4 @@ script_callbacks.on_ui_settings(on_ui_settings)
 script_callbacks.on_infotext_pasted(on_infotext_pasted)
 script_callbacks.on_app_started(muddetailer_api)
 script_callbacks.on_script_unloaded(clear_model_cache)
+script_callbacks.on_before_ui(startup)
