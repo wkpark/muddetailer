@@ -12,7 +12,6 @@ import json
 import requests
 import shutil
 from tqdm import tqdm
-import torch
 from collections import OrderedDict
 from fastapi import FastAPI
 from pathlib import Path
@@ -48,43 +47,56 @@ use_mmdet = True
 use_mmyolo = False
 use_ultralytics = False
 
+Config = None
+get_classes = None
+inference_detector = None
+init_detector = None
 
-try:
-    import mmcv
-except Exception as e:
-    print(f"\033[91mERROR\033[0m - failed to import mmcv - {e}")
-    use_mmdet = False
+def get_dependency_modules():
+    global mmcv_legacy, use_mmdet, use_mmyolo, use_ultralytics
 
-# check mmyolo, mmdet version
-use_mmyolo = False
-if use_mmdet:
-    # check mmyolo compatibility
     try:
-        import mmyolo
-        use_mmyolo = True
+        import mmcv
+        use_mmdet = True
     except Exception as e:
-        print(f"\033[91mERROR\033[0m - failed to import mmyolo - {e}")
+        print(f"\033[91mERROR\033[0m - failed to import mmcv - {e}")
+        use_mmdet = False
 
-    # check mmdet version
-    try:
-        from mmdet.core import get_classes
-        from mmdet.apis import inference_detector, init_detector
-        from mmcv import Config
-        mmcv_legacy = True
-    except ImportError:
+    # check ultralytics
+    ultralytics_spec = importlib.util.find_spec("ultralytics")
+    use_ultralytics = ultralytics_spec is not None
+    if not use_ultralytics:
+        print("\033[93mWarning\033[0m - ultralytics for yolov8 is not available.")
+
+    # check mmyolo, mmdet version
+    if use_mmdet:
+        # check mmyolo compatibility
         try:
-            from mmdet.evaluation import get_classes
-            from mmdet.apis import inference_detector, init_detector
-            from mmengine.config import Config
-            mmcv_legacy = False
-        except:
-            print(f"\033[91mERROR\033[0m - failed to import mmdet - {e}")
+            import mmyolo
+            use_mmyolo = True
+        except Exception as e:
+            print(f"\033[91mERROR\033[0m - failed to import mmyolo - {e}")
+            use_mmyolo = False
 
-# check ultralytics
-ultralytics_spec = importlib.util.find_spec("ultralytics")
-use_ultralytics = ultralytics_spec is not None
-if not use_ultralytics:
-    print("\033[93mWarning\033[0m - ultralytics for yolov8 is not available.")
+        # check mmdet version
+        try:
+            from mmdet.core import get_classes
+            from mmdet.apis import inference_detector, init_detector
+            from mmcv import Config
+            mmcv_legacy = True
+        except ImportError:
+            try:
+                from mmdet.evaluation import get_classes
+                from mmdet.apis import inference_detector, init_detector
+                from mmengine.config import Config
+                mmcv_legacy = False
+            except:
+                mmcv_legacy = None
+                print(f"\033[91mERROR\033[0m - failed to import mmdet - {e}")
+
+        return inference_detector, init_detector, get_classes, Config
+
+    return None, None, None, None
 
 
 models_list = {}
@@ -227,7 +239,10 @@ def compat_model_hash(modelname):
 
 
 def startup():
-    from launch import is_installed, run
+    import torch
+
+    global inference_detector, init_detector, get_classes, Config
+
     legacy = torch.__version__.split(".")[0] < "2"
 
     bbox_path = os.path.join(dd_models_path, "bbox")
@@ -298,6 +313,8 @@ def startup():
                 load_file_from_url(f"{huggingface_src_path}/{model}", path)
 
         break
+
+    inference_detector, init_detector, get_classes, Config = get_dependency_modules()
 
     # check validity of models
     check_validity()
@@ -727,6 +744,8 @@ class MuDetectionDetailerScript(scripts.Script):
             DD.components[elem_id] = component
 
     def show_classes(self, modelname, classes):
+        import torch
+
         if modelname == "None" or "mediapipe_" in modelname:
             return gr.update(visible=False), gr.update(visible=False, choices=[], value=[])
 
@@ -3413,6 +3432,10 @@ def check_validity():
         # check default scope
         if "yolov8" in config:
             conf["default_scope"] = "mmyolo"
+
+        if init_detector is None:
+            continue
+
         try:
             if mmcv_legacy:
                 model = init_detector(conf, checkpoint, device=model_device)
