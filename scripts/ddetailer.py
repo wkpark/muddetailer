@@ -2642,6 +2642,12 @@ class MuDetectionDetailerScript(scripts.Script):
         if censor_params and censor_type in ["blur", "mosaic", "black"]:
             use_censored = True
 
+        # gender fix
+        use_gender_fix = shared.opts.data.get("mudd_use_gender_fix", False)
+        male_prompt = shared.opts.data.get("mudd_male_prompt", "(1 boy)")
+        if use_gender_fix:
+            from scripts.detectors.gender import gender_info
+
         self.cn_hijack_undo(p)
         for n in range(ddetail_count):
             devices.torch_gc()
@@ -2797,6 +2803,15 @@ class MuDetectionDetailerScript(scripts.Script):
                 for i in gen_selected:
                     if masks[i] is None:
                         continue
+
+                    if use_gender_fix:
+                        # cropped face image to torch
+                        bbox = results[1][i]
+                        gender = gender_info(init_image, bbox)[0]
+                        if gender in ["male"]:
+                            print(" - gender =", gender)
+                            p.prompt = male_prompt + ", " + p.prompt
+
                     p.image_mask = masks[i]
                     if ( opts.mudd_save_masks):
                         images.save_image(masks[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
@@ -3353,6 +3368,8 @@ def on_ui_settings():
     shared.opts.add_option("mudd_check_model_validity", shared.OptionInfo(False, "Check validity of models on startup", section=section))
     shared.opts.add_option("mudd_use_mediapipe_preview", shared.OptionInfo(False, "Use mediapipe preview if available", section=section))
     shared.opts.add_option("mudd_selected_scripts", shared.OptionInfo(default_scripts, "Selected scripts to apply (comma separated)", section=section))
+    shared.opts.add_option("mudd_use_gender_fix", shared.OptionInfo(False, "Use gender fix", section=section))
+    shared.opts.add_option("mudd_male_prompt", shared.OptionInfo("(1 boy:1.2)", "Male prompt", section=section))
 
 
 def _create_segms(gray, bboxes):
