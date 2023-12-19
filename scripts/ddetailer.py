@@ -103,98 +103,98 @@ models_list = {}
 models_alias = {}
 model_list = None
 def list_models(real=True, refresh=False):
-        global model_list
+    global model_list
 
-        if refresh or model_list is None:
-            model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
-            model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
+    if refresh or model_list is None:
+        model_list = modelloader.load_models(model_path=dd_models_path, ext_filter=[".pth"])
+        model_list += modelloader.load_models(model_path=dd_yolo_path, ext_filter=[".pt", ".onnx"])
 
-        def modeltitle(path, shorthash=None):
-            abspath = os.path.abspath(path)
+    def modeltitle(path, shorthash=None):
+        abspath = os.path.abspath(path)
 
-            if abspath.startswith(dd_models_path):
-                name = abspath.replace(dd_models_path, '')
-            elif abspath.startswith(dd_yolo_path):
-                name = abspath.replace(models_path, '')
-            else:
-                name = os.path.basename(path)
+        if abspath.startswith(dd_models_path):
+            name = abspath.replace(dd_models_path, '')
+        elif abspath.startswith(dd_yolo_path):
+            name = abspath.replace(models_path, '')
+        else:
+            name = os.path.basename(path)
 
-            # fix path separator
-            name = name.replace('\\', '/')
-            if name.startswith("/"):
-                name = name[1:]
+        # fix path separator
+        name = name.replace('\\', '/')
+        if name.startswith("/"):
+            name = name[1:]
 
-            shortname = os.path.splitext(name.replace("/", "_"))[0]
+        shortname = os.path.splitext(name.replace("/", "_"))[0]
 
-            if shorthash is not None:
-                return f'{name} [{shorthash}]', shortname
-            return name
+        if shorthash is not None:
+            return f'{name} [{shorthash}]', shortname
+        return name
 
-        models = []
-        for filename in model_list:
-            config = filename.rsplit(".", 1)[0] + ".py"
-            name = modeltitle(filename)
-            # check if config.py file exists or not
-            if (filename.startswith("bbox/") or filename.startswith("segm/")) and not os.path.exists(config):
-                continue
+    models = []
+    for filename in model_list:
+        config = filename.rsplit(".", 1)[0] + ".py"
+        name = modeltitle(filename)
+        # check if config.py file exists or not
+        if (filename.startswith("bbox/") or filename.startswith("segm/")) and not os.path.exists(config):
+            continue
 
-            if filename not in models_list:
+        if filename not in models_list:
+            h = model_hash(filename)
+            if "bbox" in filename or "segm" in filename:
+                mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
+            else: # yolo
+                mtime = os.path.getmtime(os.path.join(models_path, filename))
+            models_list[filename] = { "hash": h, "mtime": mtime }
+        else:
+            h = models_list[filename]["hash"]
+            if "bbox" in filename or "segm" in filename:
+                mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
+            else: # yolo
+                mtime = os.path.getmtime(os.path.join(models_path, filename))
+            old_mtime = models_list[filename]["mtime"]
+            if mtime > old_mtime:
+                # update hash, mtime
                 h = model_hash(filename)
-                if "bbox" in filename or "segm" in filename:
-                    mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
-                else: # yolo
-                    mtime = os.path.getmtime(os.path.join(models_path, filename))
                 models_list[filename] = { "hash": h, "mtime": mtime }
-            else:
-                h = models_list[filename]["hash"]
-                if "bbox" in filename or "segm" in filename:
-                    mtime = os.path.getmtime(os.path.join(dd_models_path, filename))
-                else: # yolo
-                    mtime = os.path.getmtime(os.path.join(models_path, filename))
-                old_mtime = models_list[filename]["mtime"]
-                if mtime > old_mtime:
-                    # update hash, mtime
-                    h = model_hash(filename)
-                    models_list[filename] = { "hash": h, "mtime": mtime }
 
-            title, short_model_name = modeltitle(filename, h)
-            models.append(title)
-            models_alias[title] = filename
-            models_alias[filename] = title # reverse index
+        title, short_model_name = modeltitle(filename, h)
+        models.append(title)
+        models_alias[title] = filename
+        models_alias[filename] = title # reverse index
 
-            old_h = old_model_hash(filename)
-            title, _ = modeltitle(filename, old_h)
-            models_alias[title] = filename
+        old_h = old_model_hash(filename)
+        title, _ = modeltitle(filename, old_h)
+        models_alias[title] = filename
 
-        def sortkey(name):
-            order2 = [ "bbox", "mediapipe", "yolo/", "segm" ]
-            order = [ "face", "hand", "person", "pose" ]
-            for j, cat2 in enumerate(order2):
-                if cat2 in name:
-                    for k, cat in enumerate(order):
-                        if cat in name:
-                            return j * 100  + k*10
-                    return j * 100 + 4*10
-            # not reach
-            return 1000
+    def sortkey(name):
+        order2 = [ "bbox", "mediapipe", "yolo/", "segm" ]
+        order = [ "face", "hand", "person", "pose" ]
+        for j, cat2 in enumerate(order2):
+            if cat2 in name:
+                for k, cat in enumerate(order):
+                    if cat in name:
+                        return j * 100  + k*10
+                return j * 100 + 4*10
+        # not reach
+        return 1000
 
-        if not use_mmdet:
-            excluded = [m for m in models if "mmdet/" in m]
-            models = list(set(models) - set(excluded))
+    if not use_mmdet:
+        excluded = [m for m in models if "mmdet/" in m]
+        models = list(set(models) - set(excluded))
 
-        if not use_ultralytics:
-            excluded = [m for m in models if "yolo/" in m]
-            models = list(set(models) - set(excluded))
+    if not use_ultralytics:
+        excluded = [m for m in models if "yolo/" in m]
+        models = list(set(models) - set(excluded))
 
-        if not use_mmyolo:
-            excluded = [m for m in models if "yolov8" in m and "bbox" in m]
-            models = list(set(models) - set(excluded))
+    if not use_mmyolo:
+        excluded = [m for m in models if "yolov8" in m and "bbox" in m]
+        models = list(set(models) - set(excluded))
 
-        if real is False:
-            models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
-            models = sorted(models, key=sortkey)
+    if real is False:
+        models = models + ["mediapipe_face_short", "mediapipe_face_full", "mediapipe_face_mesh"]
+        models = sorted(models, key=sortkey)
 
-        return models
+    return models
 
 
 # copy of ui_common.setup_dialog from v1.6.0
