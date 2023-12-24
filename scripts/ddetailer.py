@@ -4,6 +4,7 @@ import sys
 import cv2
 import hashlib
 from PIL import Image, ImageColor
+from PIL import ImageEnhance
 import math
 import numpy as np
 import gradio as gr
@@ -1122,6 +1123,25 @@ class MuDetectionDetailerScript(scripts.Script):
                 with gr.Accordion("ControlNet options", open=False):
                     cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
 
+            with gr.Group():
+                with gr.Accordion("Extra options", open=False):
+                    with gr.Tabs(elem_id='dd_extra_options_tabs'):
+                        with gr.Tab('Filters'):
+                            with gr.Row():
+                                gr.HTML(value="<p>Postprocess filters after inpainting.</p>", label="dd_extra_option_description")
+                            with gr.Column():
+                                with gr.Row():
+                                    ex_contrast = gr.Slider(minimum=0, maximum=2, value=1, step=0.05, label="Contrast Enhancer")
+                                    ex_bright = gr.Slider(minimum=0, maximum=2, value=1, step=0.05, label="Brightness Enhancer")
+                                    ex_sharp = gr.Slider(minimum=-5, maximum=5, value=1, step=0.1, label="Sharpness Enhancer")
+                                    ex_saturation = gr.Slider(minimum=0, maximum=2, value=1, step=0.01, label="Saturation Enhancer")
+                            with gr.Column():
+                                with gr.Row():
+                                    ex_temp = gr.Slider(minimum=4500, maximum=10000, value=6500, step=1, label='Temperature (±6500K)')
+                                    ex_noise_alpha = gr.Slider(minimum=0, maximum=1, value=0, step=0.01, label='Gaussian Noise')
+
+                extra_elements = [ex_contrast, ex_bright, ex_sharp, ex_saturation, ex_temp, ex_noise_alpha]
+
             with gr.Group() as extra_helpers:
                 with gr.Accordion("NSFW censor options", open=False) as tools:
                     gr.HTML(value="<p>Select NSFW censor options. You have to setup <a href='https://github.com/padmalcom/nsfwrecog/tree/nsfwrecog_v1'>nsfwrecog_v1</a> or other similar model.</p>")
@@ -1689,6 +1709,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         def prepare_states(states, inpainting_options_a, inpainting_options_b,
                 model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect,
+                contrast, bright, sharp, saturation, temperature, noise_alpha,
                 use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
             style = {}
             if use_blur:
@@ -1715,6 +1736,16 @@ class MuDetectionDetailerScript(scripts.Script):
                 "pixel_perfect": pixel_perfect,
             }
 
+            # extra options
+            states["extra"] = {
+                "contrast": contrast,
+                "brightness": bright,
+                "sharpness": sharp,
+                "saturation": saturation,
+                "temperature": temperature,
+                "noise_alpha": noise_alpha,
+            }
+
             # setup inpainting override options
             if inpainting_options_a:
                 states["inpaint a"] = inpainting_options_a
@@ -1730,7 +1761,7 @@ class MuDetectionDetailerScript(scripts.Script):
         generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
         prepare_args = dict(
             fn=prepare_states,
-            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, *cn_controls,
+            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, *cn_controls, *extra_elements,
                 use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
             outputs=[dd_states],
             show_progress=False,
@@ -2857,6 +2888,33 @@ class MuDetectionDetailerScript(scripts.Script):
 
         if len(output_images) > 0:
             pp.image = output_images[0]
+
+            # postprocess some stuff
+            params = dd_states.get("extra", {})
+            if "noise_alpha" in params and params["noise_alpha"] != 0:
+                alpha = params["noise_alpha"]
+                img_noise = gaussian_noise(pp.image.size[0], pp.image.size[1])
+                pp.image = Image.blend(pp.image, img_noise, alpha=alpha)
+            if "contrast" in params and params["contrast"] != 1:
+                pp.image = ImageEnhance.Contrast(pp.image).enhance(params["contrast"])
+            if "brightness" in params and params["brightness"] != 1:
+                pp.image = ImageEnhance.Brightness(pp.image).enhance(params["brightness"])
+            if "sharpness" in params and params["sharpness"] != 1:
+                pp.image = ImageEnhance.Sharpness(pp.image).enhance(params["sharpness"])
+            if "saturation" in params and params["saturation"] != 1:
+                pp.image = ImageEnhance.Color(pp.image).enhance(params["saturation"])
+
+            if "temperature" in params and params["temperature"] != 6500:
+                # https://stackoverflow.com/a/11888449/1696120
+                r, g, b = kelvin_to_rgb(params["temperature"])
+                matrix = (
+                    r/255.0, 0.0, 0.0, 0.0,
+                    0.0, g/255.0, 0.0, 0.0,
+                    0.0, 0.0, b/255.0, 0.0,
+                )
+                image = pp.image.convert('RGB', matrix)
+                pp.image = image
+
             pp.image.info["parameters"] = info
 
             if p.extra_generation_params.get("Noise multiplier") is not None:
@@ -3012,6 +3070,48 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states)
 
         p.close()
+
+
+def gaussian_noise(width, height):
+    img = np.zeros((height, width, 3), np.uint8)
+    # mean = 0
+    sigma = 180 # for BMAB compatible
+    cv2.randn(img, np.zeros(3), (sigma, sigma, sigma))
+    image = Image.fromarray(img, mode='RGB')
+    return image
+
+
+def kelvin_to_rgb(kelvin):
+    """
+    Converts from K to RGB, algorithm courtesy of
+    http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+
+    simplified by wkpark
+    """
+
+    # range check 1000 < kelvin < 40000
+    temp = kelvin / 100.0
+    temp = min(max(temp, 10.0), 400.0)
+
+    if temp <= 66:
+        r = 255
+        g = 99.4708025861 * math.log(temp) - 161.1195681661
+        g = min(max(g, 0), 255)
+
+        if temp <= 19:
+            b = 0
+        else:
+            b = 138.5177312231 * math.log(temp - 10) - 305.0447927307
+            b = min(max(b, 0), 255)
+    else:
+        r = 329.698727446 * math.pow(temp - 60, -0.1332047592)
+        r = min(max(r, 0), 255)
+        g = 288.1221695283 * math.pow(temp - 60, -0.0755148492)
+        g = min(max(g, 0), 255)
+        b = 255
+
+    return r, g, b
+
 
 def quote(text):
     if ',' not in str(text) and '\n' not in str(text) and ':' not in str(text):
