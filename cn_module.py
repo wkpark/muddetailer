@@ -24,10 +24,15 @@ def init_cn_module():
         if "controlnet" in ext.name:
             check = os.path.join(ext.path, "scripts", "external_code.py")
             if os.path.exists(check):
-                cn_extension = ext
-                external_code = importlib.import_module(f"extensions.{ext.name}.scripts.external_code", "external_code")
-                print(f" - ControlNet extension {ext.name} found")
-                break
+                try:
+                    external_code = importlib.import_module(f"extensions.{ext.name}.scripts.external_code", "external_code")
+                    cn_extension = ext
+                    print(f" - ControlNet extension {ext.name} found")
+                except Exception as e:
+                    print(f"import error {e}")
+
+                if cn_extension:
+                    break
 
 
 def get_cn_models(update=False, types="inpaint,canny,depth,openpose,lineart,softedge,scribble,tile"):
