@@ -2771,11 +2771,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
                     p2.seed = processed.seed + 1
                     p2.subseed = processed.subseed + 1
-                    p2.init_images = processed.images
+                    p2.init_images = [processed.images[0]]
 
                 if (len(gen_selected) > 0):
-                    output_images[n] = processed.images[0]
-                    init_image = processed.images[0]
+                    init_image = copy(processed.images[0])
+                    output_images[n] = init_image
 
 
             if dd_model_a != "None" and len(masks_a) > 0 and dd_model_b != "None" and dd_bitwise_op != "None":
