@@ -2850,7 +2850,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     processed = processing.process_images(p)
                     p.seed = processed.seed + 1
                     p.subseed = processed.subseed + 1
-                    p.init_images = processed.images
+                    p.init_images = [processed.images[0]]
 
                 if len(gen_selected) > 0 and len(processed.images) > 0:
                     output_images[n] = processed.images[0]
