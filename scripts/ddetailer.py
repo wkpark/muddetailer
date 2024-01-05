@@ -1139,7 +1139,10 @@ class MuDetectionDetailerScript(scripts.Script):
                             inpaint_size_preset = gr.Radio(label="Inpaint w x h presets", choices=["default", "512x512", "640x640", "768x768", "1024x1024"], value="default")
                     with gr.Group(visible=False) as model_b_options_2:
                         with gr.Row():
-                            dd_preprocess_b = gr.Checkbox(label='Inpaint B detections before inpainting A')
+                            dd_preprocess_b = gr.Radio(label="Inpaint B detections", choices=[
+                                ("before inpainting A", "before"),
+                                ("None", "none"),
+                            ], value="none")
 
                     with gr.Group(visible=False) as operation:
                         with gr.Row():
@@ -2928,7 +2931,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 results_ab = [None]*len(results_a)
 
             # Optional secondary pre-processing run
-            if len(masks_b) > 0 and dd_preprocess_b:
+            if len(masks_b) > 0 and dd_preprocess_b == "before":
                 results_b = update_result_masks(results_b, masks_b)
                 segmask_preview_b = create_segmask_preview(results_b, init_image, select_masks_b)
                 shared.state.assign_current_image(segmask_preview_b)
@@ -3043,7 +3046,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     if cn_params is not None:
                         cn_prepare(p, cn_params)
                     elif cn_controls is not None:
-                        if "hand" in dd_model_b and "hand_refiner" in cn_controls[1] and (dd_bitwise_op == "None" or dd_preprocess_b):
+                        if "hand" in dd_model_b and "hand_refiner" in cn_controls[1] and (dd_bitwise_op == "None" or dd_preprocess_b == "before"):
                             pass
                         else:
                             cn_prepare(p)
@@ -3221,7 +3224,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_prompt = args.get("prompt", "")
             dd_neg_prompt = args.get("negative prompt", "")
 
-            dd_preprocess_b = args.get("preprocess b", False)
+            dd_preprocess_b = args.get("preprocess b", "none")
             dd_bitwise_op = args.get("bitwise", "None")
 
             dd_model_b = args.get("model b", "None")
@@ -4222,6 +4225,12 @@ def on_infotext_pasted(infotext, results):
                 v = unquote(v)
             choices = _get_preset_choices(v)
             updates[k] = choices
+
+        # old "preprocess b" option
+        if k.endswith(" preprocess b"):
+            if v in ["True", "False"]:
+                v = "before" if v == "True" else "none"
+                updates[k] = v
 
         # fix controlnet params
         if k.find(" ControlNet") > 0:
