@@ -1238,7 +1238,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
             with gr.Group(visible=True) as controlnet_ui:
                 with gr.Accordion("ControlNet options", open=False):
-                    cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
+                    cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect, reset_cn = cn_module.cn_control_ui(is_img2img)
 
                     all_cn_controls = [cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect]
 
@@ -1266,6 +1266,13 @@ class MuDetectionDetailerScript(scripts.Script):
                     export_controlnet_b.click(
                         fn=export_controlnet_options,
                         inputs=[dd_controlnet_options_b],
+                        outputs=[*all_cn_controls],
+                        show_progress=False,
+                    )
+
+                    reset_cn.click(
+                        fn=lambda: export_controlnet_options([]),
+                        inputs=[],
                         outputs=[*all_cn_controls],
                         show_progress=False,
                     )

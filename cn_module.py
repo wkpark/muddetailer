@@ -237,6 +237,7 @@ def cn_control_ui(is_img2img=False):
                 #elem_id=f"{elem_id_tabname}_{tabname}_controlnet_model_dropdown",
             )
             create_refresh_button(model, lambda: None , lambda: {"choices": get_cn_models(True)}, "mudd_refresh_cn_models")
+            reset_btn = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
 
 
             types = [t.strip() for t in "inpaint,canny,depth,openpose,lineart,softedge,scribble,tile".split(",")]
@@ -339,7 +340,7 @@ def cn_control_ui(is_img2img=False):
         elem_classes="controlnet_resize_mode_radio",
     )
 
-    return model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect
+    return model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect, reset_btn
 
 
 def _disable_controlnet_units(p):
