@@ -477,6 +477,18 @@ def ddetailer_extra_params(
         params_b = dict((x, y.strip()) for x, y in params_b)
         params["MuDDetailer inpaint b"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_b.items() if v is not None])
 
+    params_a = dd_states.get("controlnet a", None)
+    if params_a:
+        params_a = (tuple(setting.split(":", 1)) for setting in params_a)
+        params_a = dict((x, y.strip()) for x, y in params_a)
+        params["MuDDetailer controlnet a"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_a.items() if v is not None])
+
+    params_b = dd_states.get("controlnet b", None)
+    if params_b:
+        params_b = (tuple(setting.split(":", 1)) for setting in params_b)
+        params_b = dict((x, y.strip()) for x, y in params_b)
+        params["MuDDetailer controlnet b"] = ", ".join([k if k == v else f'{k}: {quote(v)}' for k, v in params_b.items() if v is not None])
+
     # controlnet
     cn_params = cn_module.get_cn_extra_params(dd_states)
     if cn_params and cn_params.get("Model", "None") != "None" and cn_params.get("Module", "None") != "None":
@@ -546,6 +558,82 @@ def export_inpainting_options(choices):
                 outs[i] = float(outs[i])
             elif k in ["Inpaint full"]:
                 outs[i] = bool(outs[i])
+
+    return [gr.update(value=v) for v in outs]
+
+
+# import/export optional controlnet overriding options
+def import_controlnet_options(model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect):
+    params = {
+        "Model": model,
+        "Module": module,
+        "Weight": weight,
+        "Guidance Start": guidance_start,
+        "Guidance End": guidance_end,
+        "Control Mode": control_mode,
+        "Resize Mode": resize_mode,
+        "Pixel Perfect": pixel_perfect,
+    }
+
+    choices = [ f"{k}: {v}" for k, v in params.items()]
+    return gr.update(value=choices)
+
+
+def _parse_controlnet_options(choices, remap=False):
+    cn_module = get_controlnet_module()
+
+    defaults = {
+        "Model": "None",
+        "Module": "None",
+        "Weight": 1,
+        "Guidance Start": 0,
+        "Guidance End": 1,
+        "Control Mode": "Balanced",
+        "Resize Mode": "Just Resize",
+        "Pixel Perfect": True,
+    }
+
+    mapping = {
+        "Model": "model",
+        "Module": "module",
+        "Weight": "weight",
+        "Guidance Start": "guidance_start",
+        "Guidance End": "guidance_end",
+        "Control Mode": "control_mode",
+        "Resize Mode": "control_size",
+        "Pixel Perfect": "pixel_perfect",
+    }
+
+    choices_params = (tuple(choice.split(":", 1)) for choice in choices)
+    choices_params = dict((x, y.strip()) for x, y in choices_params)
+
+    outs = list(defaults.values())
+    for i, k in enumerate(defaults.keys()):
+        if k in choices_params:
+            outs[i] = choices_params[k]
+            if k in ["Weight", "Guidance Start", "Guidance End"]:
+                outs[i] = float(outs[i])
+            elif k in ["Pixel Perfect"]:
+                outs[i] = bool(outs[i])
+            elif k == "Control Mode":
+                if cn_module.external_code:
+                    outs[i] = cn_module.external_code.control_mode_from_value(outs[i])
+            elif k == "Resize Mode":
+                if cn_module.external_code:
+                    outs[i] = cn_module.external_code.resize_mode_from_value(outs[i])
+
+    if not remap:
+        return outs
+
+    fixed = {}
+    for k, v in zip(mapping.values(), outs):
+        fixed[k] = v
+
+    return fixed
+
+
+def export_controlnet_options(choices):
+    outs = _parse_controlnet_options(choices)
 
     return [gr.update(value=v) for v in outs]
 
@@ -900,11 +988,24 @@ class MuDetectionDetailerScript(scripts.Script):
                                 import_inpainting_a = gr.Button(value="↑", elem_classes=["tool", "import"])
                                 export_inpainting_a = gr.Button(value="↓", elem_classes=["tool", "export"])
                                 inpaint_reset_a = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
+                              with gr.Row():
+                                dd_controlnet_options_a = gr.Dropdown(label='ControlNet options', value=[], multiselect=True,
+                                    info="Override ControlNet options",
+                                    interactive=True)
+                                import_controlnet_a = gr.Button(value="↑", elem_classes=["tool", "import"])
+                                export_controlnet_a = gr.Button(value="↓", elem_classes=["tool", "export"])
+                                controlnet_reset_a = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
 
                             inpaint_reset_a.click(
                                 fn=lambda: gr.update(value=[]),
                                 inputs=[],
                                 outputs=[dd_inpainting_options_a],
+                            )
+
+                            controlnet_reset_a.click(
+                                fn=lambda: gr.update(value=[]),
+                                inputs=[],
+                                outputs=[dd_controlnet_options_a],
                             )
 
                     dd_model_a.change(
@@ -983,11 +1084,24 @@ class MuDetectionDetailerScript(scripts.Script):
                                 import_inpainting_b = gr.Button(value="↑", elem_classes=["tool", "import"])
                                 export_inpainting_b = gr.Button(value="↓", elem_classes=["tool", "export"])
                                 inpaint_reset_b = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
+                              with gr.Row():
+                                dd_controlnet_options_b = gr.Dropdown(label='ControlNet options (B)', value=[], multiselect=True,
+                                    info="Override ControlNet options",
+                                    interactive=True)
+                                import_controlnet_b = gr.Button(value="↑", elem_classes=["tool", "import"])
+                                export_controlnet_b = gr.Button(value="↓", elem_classes=["tool", "export"])
+                                controlnet_reset_b = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
 
                             inpaint_reset_b.click(
                                 fn=lambda: gr.update(value=[]),
                                 inputs=[],
                                 outputs=[dd_inpainting_options_b],
+                            )
+
+                            controlnet_reset_b.click(
+                                fn=lambda: gr.update(value=[]),
+                                inputs=[],
+                                outputs=[dd_controlnet_options_b],
                             )
 
                     dd_model_b.change(
@@ -1122,6 +1236,36 @@ class MuDetectionDetailerScript(scripts.Script):
             with gr.Group(visible=True) as controlnet_ui:
                 with gr.Accordion("ControlNet options", open=False):
                     cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect = cn_module.cn_control_ui(is_img2img)
+
+                    all_cn_controls = [cn_model, cn_module_, cn_weight, cn_guidance_start, cn_guidance_end, cn_control_mode, cn_resize_mode, cn_pixel_perfect]
+
+                    import_controlnet_a.click(
+                        fn=import_controlnet_options,
+                        inputs=[*all_cn_controls],
+                        outputs=[dd_controlnet_options_a],
+                        show_progress=False,
+                    )
+
+                    export_controlnet_a.click(
+                        fn=export_controlnet_options,
+                        inputs=[dd_controlnet_options_a],
+                        outputs=[*all_cn_controls],
+                        show_progress=False,
+                    )
+
+                    import_controlnet_b.click(
+                        fn=import_controlnet_options,
+                        inputs=[*all_cn_controls],
+                        outputs=[dd_controlnet_options_b],
+                        show_progress=False,
+                    )
+
+                    export_controlnet_b.click(
+                        fn=export_controlnet_options,
+                        inputs=[dd_controlnet_options_b],
+                        outputs=[*all_cn_controls],
+                        show_progress=False,
+                    )
 
             with gr.Group():
                 with gr.Accordion("Extra options", open=False):
@@ -1485,6 +1629,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_vae, "MuDDetailer VAE"),
                 (dd_inpainting_options_a, "MuDDetailer inpaint a"),
                 (dd_inpainting_options_b, "MuDDetailer inpaint b"),
+                (dd_controlnet_options_a, "MuDDetailer controlnet a"),
+                (dd_controlnet_options_b, "MuDDetailer controlnet b"),
                 (masks_a, "MuDDetailer detection a"),
                 (masks_b, "MuDDetailer detection b"),
             )
@@ -1707,7 +1853,9 @@ class MuDetectionDetailerScript(scripts.Script):
             components = [name.replace("MuDDetailer ", "").capitalize() for _, name in self._infotext_fields]
             return components
 
-        def prepare_states(states, inpainting_options_a, inpainting_options_b,
+        def prepare_states(states,
+                inpainting_options_a, inpainting_options_b,
+                controlnet_options_a, controlnet_options_b,
                 model, module, weight, guidance_start, guidance_end, control_mode, resize_mode, pixel_perfect,
                 contrast, bright, sharp, saturation, temperature, noise_alpha,
                 use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after):
@@ -1752,6 +1900,11 @@ class MuDetectionDetailerScript(scripts.Script):
             if inpainting_options_b:
                 states["inpaint b"] = inpainting_options_b
 
+            if controlnet_options_a:
+                states["controlnet a"] = controlnet_options_a if controlnet_options_a else None
+            if controlnet_options_b:
+                states["controlnet b"] = controlnet_options_b if controlnet_options_b else None
+
             shared.opts.data["mudd_states"] = states
             return states
 
@@ -1761,7 +1914,10 @@ class MuDetectionDetailerScript(scripts.Script):
         generate_button = DD.components["img2img_generate" if is_img2img else "txt2img_generate"]
         prepare_args = dict(
             fn=prepare_states,
-            inputs=[dd_states, dd_inpainting_options_a, dd_inpainting_options_b, *cn_controls, *extra_elements,
+            inputs=[dd_states,
+                dd_inpainting_options_a, dd_inpainting_options_b,
+                dd_controlnet_options_a, dd_controlnet_options_b,
+                *cn_controls, *extra_elements,
                 use_blur, blur_size, use_mosaic, mosaic_size, use_black, custom_color, censor_after],
             outputs=[dd_states],
             show_progress=False,
@@ -2567,21 +2723,26 @@ class MuDetectionDetailerScript(scripts.Script):
         cn_module = get_controlnet_module()
         cn_controls = cn_module.get_cn_controls(dd_states)
 
-        def cn_prepare(p, scripts=default_scripts):
-            scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
-            scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
-
-            if cn_controls is not None:
+        def cn_prepare(p, params=None, scripts=default_scripts):
+            cn_units = None
+            if cn_controls is not None or params is not None:
                 p.control_net_enabled = True
 
                 scripts += ",controlnet"
-                cn_units = [cn_module.cn_unit(p, *cn_controls)]
+
+                if params is not None:
+                    params = _parse_controlnet_options(params, remap=True)
+                    controls = cn_module.get_cn_controls({"controlnet": params})
+                else:
+                    controls = copy(cn_controls)
+
+                cn_units = [cn_module.cn_unit(p, *controls)]
             else:
                 p.control_net_enabled = False
 
             p.scripts = self.script_filter(p_txt, scripts)
 
-            if cn_controls is not None:
+            if cn_units is not None:
                 cn_module.update_cn_script_in_processing(p, cn_units)
 
         # reset tqdm for inpainting helper mode
@@ -2676,6 +2837,32 @@ class MuDetectionDetailerScript(scripts.Script):
             if len(override_settings) > 0:
                 p.override_settings = p.override_settings.update(override_settings)
 
+        def _controlnet_params(p, params):
+            if params is None:
+                return
+
+            # parse and set/load default
+            params = (tuple(setting.split(":", 1)) for setting in params)
+            params = dict((x, y.strip()) for x, y in params)
+            params = prepare_load_preset(params)
+
+            sampler =  params.get("Sampler", None)
+            if sampler is not None and sampler in ["None", "Default", "Use same sampler"]:
+                params.pop("Sampler")
+
+            override_map = (
+                ("Mask blur", "mask_blur"),
+                ("Denoising", "denoising_strength"),
+                ("Inpaint full", "inpaint_full_res"),
+                ("Inpaint padding", "inpaint_full_res_padding"),
+                ("Inpaint width", "width"),
+                ("Inpaint height", "height"),
+                ("Sampler", "sampler_name"),
+                ("Steps", "steps"),
+                ("Noise multiplier", "initial_noise_multiplier"),
+                ("CFG scale", "cfg_scale"),
+            )
+
 
         # check censored style
         use_censored = False
@@ -2760,8 +2947,12 @@ class MuDetectionDetailerScript(scripts.Script):
                 p2 = copy(orig_p)
 
                 # prepare controlnet
-                if cn_controls is not None:
-                    if "hand" in dd_model_b and "hand_refiner" in cn_controls[1]:
+                if cn_module.external_code:
+                    # get optional controlnet
+                    cn_params = dd_states.get("controlnet b", None)
+                    if cn_params is not None:
+                        cn_prepare(p2, cn_params)
+                    elif cn_controls is not None and "hand" in dd_model_b and "hand_refiner" in cn_controls[1]:
                         cn_prepare(p2)
                 # reset cache
                 p2.cached_c = [None, None]
@@ -2844,14 +3035,18 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 p = copy(orig_p)
                 # prepare controlnet
-                # FIXME
                 # hand_refiner with model_a == hand -> control_net: enable
                 # hand_refiner with model_a == face, model_b == hand, preprocess_b is True -> control_net: disable
-                if cn_controls is not None:
-                    if "hand" in dd_model_b and "hand_refiner" in cn_controls[1] and (dd_bitwise_op == "None" or dd_preprocess_b):
-                        pass
-                    else:
-                        cn_prepare(p)
+                if cn_module.external_code:
+                    # get optional controlnet
+                    cn_params = dd_states.get("controlnet a", None)
+                    if cn_params is not None:
+                        cn_prepare(p, cn_params)
+                    elif cn_controls is not None:
+                        if "hand" in dd_model_b and "hand_refiner" in cn_controls[1] and (dd_bitwise_op == "None" or dd_preprocess_b):
+                            pass
+                        else:
+                            cn_prepare(p)
 
                 # reset cache
                 p.cached_c = [None, None]
@@ -4016,6 +4211,13 @@ def on_infotext_pasted(infotext, results):
 
         # fix inpaint a,b overriding options
         if k.endswith(" inpaint a") or k.endswith(" inpaint b"):
+            if v[0] == '"' and v[-1] == '"':
+                v = unquote(v)
+            choices = _get_preset_choices(v)
+            updates[k] = choices
+
+        # fix controlnet a,b overriding options
+        if k.endswith(" controlnet a") or k.endswith(" controlnet b"):
             if v[0] == '"' and v[-1] == '"':
                 v = unquote(v)
             choices = _get_preset_choices(v)
