@@ -2550,27 +2550,39 @@ class MuDetectionDetailerScript(scripts.Script):
         default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
         default_scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
 
-        # controlnet
-        cn_module = get_controlnet_module()
-        cn_controls = cn_module.get_cn_controls(dd_states)
-        if cn_controls is not None:
-            p.control_net_enabled = True
-
-            default_scripts += ",controlnet"
-            cn_units = [cn_module.cn_unit(p, *cn_controls)]
-        else:
-            p.control_net_enabled = False
-
-        p.scripts = self.script_filter(p_txt, default_scripts)
+        # orig scripts
         p.script_args = deepcopy(p_txt.script_args) if p_txt.script_args is not None else {}
-
-        if cn_controls is not None:
-            cn_module.update_cn_script_in_processing(p, cn_units)
+        p.scripts = self.script_filter(p_txt, default_scripts)
 
         p.do_not_save_grid = True
         p.do_not_save_samples = True
 
         p._disable_muddetailer = True
+        p.control_net_enabled = False
+
+        # save original p
+        orig_p = copy(p)
+
+        # controlnet
+        cn_module = get_controlnet_module()
+        cn_controls = cn_module.get_cn_controls(dd_states)
+
+        def cn_prepare(p, scripts=default_scripts):
+            scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
+            scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
+
+            if cn_controls is not None:
+                p.control_net_enabled = True
+
+                scripts += ",controlnet"
+                cn_units = [cn_module.cn_unit(p, *cn_controls)]
+            else:
+                p.control_net_enabled = False
+
+            p.scripts = self.script_filter(p_txt, scripts)
+
+            if cn_controls is not None:
+                cn_module.update_cn_script_in_processing(p, cn_units)
 
         # reset tqdm for inpainting helper mode
         if p_txt._inpainting:
@@ -2679,7 +2691,6 @@ class MuDetectionDetailerScript(scripts.Script):
         if use_gender_fix:
             from scripts.detectors.gender import gender_info
 
-        self.cn_hijack_undo(p)
         for n in range(ddetail_count):
             devices.torch_gc()
             start_seed = seed + n
@@ -2746,7 +2757,16 @@ class MuDetectionDetailerScript(scripts.Script):
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label_b} for output generation {p_txt._idx + 1}.")
 
-                p2 = copy(p)
+                p2 = copy(orig_p)
+
+                # prepare controlnet
+                if cn_controls is not None:
+                    if "hand" in dd_model_b and "hand_refiner" in cn_controls[1]:
+                        cn_prepare(p2)
+                # reset cache
+                p2.cached_c = [None, None]
+                p2.cached_uc = [None, None]
+
                 p2.seed = start_seed
                 p2.init_images = [init_image]
 
@@ -2763,6 +2783,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
                     shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
+                self.cn_hijack_undo(p2)
                 for i in gen_selected:
                     p2.image_mask = masks_b[i]
                     if ( opts.mudd_save_masks):
@@ -2772,6 +2793,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     p2.seed = processed.seed + 1
                     p2.subseed = processed.subseed + 1
                     p2.init_images = [processed.images[0]]
+
+                self.cn_hijack_redo(p2)
 
                 if (len(gen_selected) > 0):
                     init_image = copy(processed.images[0])
@@ -2819,6 +2842,21 @@ class MuDetectionDetailerScript(scripts.Script):
                 selected = len(gen_selected)
                 print(f"Processing {selected} detection{'s' if selected > 1 else ''} of model {label} for output generation {p_txt._idx + 1}.")
 
+                p = copy(orig_p)
+                # prepare controlnet
+                # FIXME
+                # hand_refiner with model_a == hand -> control_net: enable
+                # hand_refiner with model_a == face, model_b == hand, preprocess_b is True -> control_net: disable
+                if cn_controls is not None:
+                    if "hand" in dd_model_b and "hand_refiner" in cn_controls[1] and (dd_bitwise_op == "None" or dd_preprocess_b):
+                        pass
+                    else:
+                        cn_prepare(p)
+
+                # reset cache
+                p.cached_c = [None, None]
+                p.cached_uc = [None, None]
+
                 p.seed = start_seed
                 p.init_images = [init_image]
 
@@ -2831,6 +2869,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
                     shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
+                self.cn_hijack_undo(p)
                 for i in gen_selected:
                     if masks[i] is None:
                         continue
@@ -2852,6 +2891,8 @@ class MuDetectionDetailerScript(scripts.Script):
                     p.subseed = processed.subseed + 1
                     p.init_images = [processed.images[0]]
 
+                self.cn_hijack_redo(p)
+
                 if len(gen_selected) > 0 and len(processed.images) > 0:
                     output_images[n] = processed.images[0]
 
@@ -2860,8 +2901,6 @@ class MuDetectionDetailerScript(scripts.Script):
                     censored_image = self.make_censored(processed.images[0], masks_b, results_b, censor_params, select_masks_b)
 
             state.job = f"Generation {p_txt._idx + 1} out of {state.job_count}"
-
-        self.cn_hijack_redo(p)
 
         # remove ControlNet Unit info
         if cn_controls is not None:
