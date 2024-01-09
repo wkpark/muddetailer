@@ -3124,7 +3124,11 @@ class MuDetectionDetailerScript(scripts.Script):
 
         if len(masks_params) > 0:
             p_txt.extra_generation_params.update(masks_params)
-            info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
+
+        if p_txt.extra_generation_params.get("Noise multiplier") is not None:
+            p_txt.extra_generation_params.pop("Noise multiplier")
+
+        info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
 
         processed.masks_a = detected_a
         processed.masks_b = detected_b
@@ -3166,8 +3170,6 @@ class MuDetectionDetailerScript(scripts.Script):
 
             pp.image.info["parameters"] = info
 
-            if p.extra_generation_params.get("Noise multiplier") is not None:
-                p.extra_generation_params.pop("Noise multiplier")
         if state.job_count == save_jobcount and getattr(self, "_image_masks", None) is not None:
             if segmask_preview_a is not None:
                 segmask_preview_a.info["parameters"] = info
