@@ -1952,7 +1952,7 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_preprocess_b, dd_bitwise_op,
                     dd_model_b, dd_classes_b,
                     dd_conf_b, dd_max_per_img_b,
-                    dd_detect_order_b, dd_select_masks_a,
+                    dd_detect_order_b, dd_select_masks_b,
                     dd_dilation_factor_b,
                     dd_offset_x_b, dd_offset_y_b,
                     dd_prompt_2, dd_neg_prompt_2,
