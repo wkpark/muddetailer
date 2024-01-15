@@ -92,11 +92,14 @@ def get_dependency_modules():
                 from mmdet.apis import inference_detector, init_detector
                 from mmengine.config import Config
                 mmcv_legacy = False
-            except:
+            except Exception as e:
                 mmcv_legacy = None
+                use_mmdet = False
+                use_mmyolo = False
                 print(f"\033[91mERROR\033[0m - failed to import mmdet - {e}")
 
-        return inference_detector, init_detector, get_classes, Config
+        if mmcv_legacy is not None:
+            return inference_detector, init_detector, get_classes, Config
 
     return None, None, None, None
 
@@ -181,7 +184,7 @@ def list_models(real=True, refresh=False):
         return 1000
 
     if not use_mmdet:
-        excluded = [m for m in models if "mmdet/" in m]
+        excluded = [m for m in models if "bbox/" in m or "segm/" in m]
         models = list(set(models) - set(excluded))
 
     if not use_ultralytics:
