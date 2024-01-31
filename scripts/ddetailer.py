@@ -2430,7 +2430,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
         script_runner = copy(p.scripts)
 
-        default = scripts if scripts else "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
+        default = scripts if scripts else "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
         script_names = default
         script_names_set = {
             name
@@ -2721,7 +2721,7 @@ class MuDetectionDetailerScript(scripts.Script):
         p.cached_c = [None, None]
         p.cached_uc = [None, None]
 
-        default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
+        default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
         default_scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
 
         # orig scripts
@@ -3714,7 +3714,7 @@ def on_ui_settings():
             section=section,
         ),
     )
-    default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight"
+    default_scripts = "dynamic_prompting,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
     shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=section))
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=section))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=section))
