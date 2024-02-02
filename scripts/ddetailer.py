@@ -2340,7 +2340,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 dependency = None
 
                 for d in dependencies:
-                    if "js" in d and d["js"] in [ "submit", "submit_img2img" ]:
+                    if "js" in d and d["js"] in [ "submit", "submit_img2img", "submit_txt2img" ]:
                         dependency = d
 
                 params = [params for params in demo.fns if compare_components_with_ids(params.inputs, dependency["inputs"])]
@@ -2989,7 +2989,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 # get img2img sampler steps and update total tqdm
                 _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                if len(gen_selected) > 0 and getattr(shared.total_tqdm, "_tqdm", None) is not None:
                     shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
                 self.cn_hijack_undo(p2)
@@ -3079,7 +3079,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
                 # get img2img sampler steps and update total tqdm
                 _, sampler_steps = sd_samplers_common.setup_img2img_steps(p)
-                if len(gen_selected) > 0 and shared.total_tqdm._tqdm is not None:
+                if len(gen_selected) > 0 and getattr(shared.total_tqdm, "_tqdm", None) is not None:
                     shared.total_tqdm.updateTotal(shared.total_tqdm._tqdm.total + (sampler_steps + 1) * len(gen_selected))
 
                 self.cn_hijack_undo(p)
