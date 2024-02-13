@@ -985,16 +985,17 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_detect_order_a = gr.CheckboxGroup(label="Detect order", choices=["area", "position"], interactive=True, value=[], min_width=140)
                               with gr.Row():
                                 dd_select_masks_a = gr.Textbox(label='Select detections to process', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
-                              with gr.Accordion("Override Inpainting", open=False, elem_classes=["input-accordion"]):
-                                with gr.Row():
+                              with gr.Row(elem_classes="accordions"):
+                                with gr.Accordion("Override Inpainting", open=False, elem_classes=["dd-compact-accordion"]):
+                                  with gr.Row():
                                     dd_inpainting_options_a = gr.Dropdown(label='Override inpainting options', value=[], multiselect=True,
                                         info="Override default inpainting options",
                                         interactive=True)
                                     import_inpainting_a = gr.Button(value="↑", elem_classes=["tool", "import"])
                                     export_inpainting_a = gr.Button(value="↓", elem_classes=["tool", "export"])
                                     inpaint_reset_a = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
-                              with gr.Accordion("Override ControlNet", open=False, elem_classes=["input-accordion"]):
-                                with gr.Row():
+                                with gr.Accordion("Override ControlNet", open=False, elem_classes=["dd-compact-accordion"]):
+                                  with gr.Row():
                                     dd_controlnet_options_a = gr.Dropdown(label='ControlNet options', value=[], multiselect=True,
                                         info="Override ControlNet options",
                                         interactive=True)
@@ -1083,16 +1084,17 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_detect_order_b = gr.CheckboxGroup(label="Detect order (B)", choices=["area", "position"], interactive=True, value=[], min_width=140)
                               with gr.Row():
                                 dd_select_masks_b = gr.Textbox(label='Select detections to process (B)', value='', placeholder='input detection numbers to process e.g) 1,2,3-5..', interactive=True)
-                              with gr.Accordion("Override Inpainting", open=False, elem_classes=["input-accordion"]):
-                                with gr.Row():
+                              with gr.Row(elem_classes="accordions"):
+                                with gr.Accordion("Override Inpainting", open=False, elem_classes=["dd-compact-accordion"]):
+                                  with gr.Row():
                                     dd_inpainting_options_b = gr.Dropdown(label='Inpainting options (B)', value=[], multiselect=True,
                                         info="Override default inpainting options",
                                         interactive=True)
                                     import_inpainting_b = gr.Button(value="↑", elem_classes=["tool", "import"])
                                     export_inpainting_b = gr.Button(value="↓", elem_classes=["tool", "export"])
                                     inpaint_reset_b = gr.Button(value="\U0001f5d1\ufe0f", elem_classes=["tool"])
-                              with gr.Accordion("Override ControlNet", open=False, elem_classes=["input-accordion"]):
-                                with gr.Row():
+                                with gr.Accordion("Override ControlNet", open=False, elem_classes=["dd-compact-accordion"]):
+                                  with gr.Row():
                                     dd_controlnet_options_b = gr.Dropdown(label='ControlNet options (B)', value=[], multiselect=True,
                                         info="Override ControlNet options",
                                         interactive=True)

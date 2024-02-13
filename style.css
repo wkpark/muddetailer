@@ -72,3 +72,15 @@
     visibility: hidden;
     height: 0px;
 }
+
+div.block.dd-compact-accordion{
+
+}
+div.accordions > div.dd-compact-accordion{
+    min-width: fit-content !important;
+}
+
+div.accordions > div.dd-compact-accordion.compact-accordion-open{
+    flex: 1 auto;
+    flex-flow: column;
+}
