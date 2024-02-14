@@ -968,7 +968,7 @@ class MuDetectionDetailerScript(scripts.Script):
                                     elem_id="mudd_" + ("img2img" if is_img2img else "txt2img") + "_neg_prompt",
                                     elem_classes=["prompt"],
                                 )
-                        with gr.Group(visible=False) as model_a_options:
+                        with gr.Group(visible=True) as model_a_options:
                             with gr.Row():
                                 with gr.Column():
                                     with gr.Row():
@@ -1078,6 +1078,19 @@ class MuDetectionDetailerScript(scripts.Script):
                                         dd_offset_x_b = gr.Slider(label='X offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
                                         dd_offset_y_b = gr.Slider(label='Y offset (B)', minimum=-200, maximum=200, step=1, value=0, min_width=140)
 
+                            with gr.Row():
+                                with gr.Group(visible=False) as model_b_options_2:
+                                    with gr.Row():
+                                        dd_preprocess_b = gr.Radio(label="Inpaint B detections", choices=[
+                                            ("before inpainting A", "before"),
+                                            ("None", "none"),
+                                        ], info="hands or other detections",
+                                        value="none")
+
+                                with gr.Group(visible=False) as operation:
+                                    with gr.Row():
+                                        dd_bitwise_op = gr.Radio(label='Bitwise Mask operation', info="Mask operation A and B", choices=['None', 'A&B', 'A-B'], value="None")
+
                             with gr.Accordion("Advanced options", open=False):
                               with gr.Row():
                                 dd_max_per_img_b = gr.Slider(label='Max detections (B) (0: use default)', minimum=0, maximum=100, step=1, value=0, min_width=140)
@@ -1147,16 +1160,6 @@ class MuDetectionDetailerScript(scripts.Script):
                             dd_inpaint_height = gr.Slider(label='Inpaint height', minimum=0, maximum=2048, step=32, value=0, min_width=140)
                         with gr.Row():
                             inpaint_size_preset = gr.Radio(label="Inpaint w x h presets", choices=["default", "512x512", "640x640", "768x768", "1024x1024"], value="default")
-                    with gr.Group(visible=False) as model_b_options_2:
-                        with gr.Row():
-                            dd_preprocess_b = gr.Radio(label="Inpaint B detections", choices=[
-                                ("before inpainting A", "before"),
-                                ("None", "none"),
-                            ], value="none")
-
-                    with gr.Group(visible=False) as operation:
-                        with gr.Row():
-                            dd_bitwise_op = gr.Radio(label='Bitwise Mask operation', info="Mask operation A and B", choices=['None', 'A&B', 'A-B'], value="None")
 
                     def inpaint_preset(preset):
                         if "x" in preset:
