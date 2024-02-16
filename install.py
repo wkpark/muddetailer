@@ -71,8 +71,8 @@ def install():
     if mmcv_version:
         print("Check mmcv version...")
         if version.parse(mmcv_version) >= version.parse("2.0.1"):
-            print(f"Your mmcv version {mmcv_version} may not work mmyolo.")
-            print("Please install mmcv version 2.0.0 manually or uninstall mmcv and restart UI again to install mmcv 2.0.0")
+            print(f"Your mmcv version {mmcv_version} may not work with mmyolo.")
+            print("or you need to fix version restriction of __init__.py of mmyolo manually, to use mmcv 2.1.0 with mmyolo.")
 
     mmengine_version = None
     try:
@@ -82,8 +82,8 @@ def install():
     if mmengine_version:
         print("Check mmengine version...")
         if version.parse(mmengine_version) >= version.parse("0.9.0"):
-            print(f"Your mmengine version {mmengine_version} may not work windows...")
-            print("Please install mmengine 0.8.5 manually or install windows enabled un-official patched version of bitsandbytes with")
+            print(f"Your mmengine version {mmengine_version} may not work on windows...")
+            print("Please install mmengine 0.8.5 manually or install latest bitsandbytes >= 0.43.0 or un-official patched version of bitsandbytes-windows.")
             #print("Uninstalling mmengine...")
             #run(f'"{python}" -m pip uninstall -y mmengine', live=True)
             #print("Installing mmengine 0.8.5...")
