@@ -25,7 +25,10 @@ def init_cn_module():
             check = os.path.join(ext.path, "scripts", "external_code.py")
             if os.path.exists(check):
                 try:
-                    external_code = importlib.import_module(f"extensions.{ext.name}.scripts.external_code", "external_code")
+                    builtin = False
+                    if "extensions-builtin" in ext.path:
+                        builtin = True
+                    external_code = importlib.import_module(f"extensions{'-builtin' if builtin else ''}.{ext.name}.scripts.external_code", "external_code")
                     cn_extension = ext
                     print(f" - ControlNet extension {ext.name} found")
                 except Exception as e:
