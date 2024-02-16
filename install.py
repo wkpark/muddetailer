@@ -92,7 +92,7 @@ def install():
             print(f"your mmengine version is {mmengine_version}")
 
     if not legacy and not is_installed("mmyolo"):
-        run(f'"{python}" -m mim install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
+        run(f'"{python}" -m pip install mmyolo', desc="Installing mmyolo", errdesc="Couldn't install mmyolo")
 
 
     req_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "requirements.txt")
