@@ -2759,7 +2759,9 @@ class MuDetectionDetailerScript(scripts.Script):
                 else:
                     controls = copy(cn_controls)
 
-                cn_units = [cn_module.cn_unit(p, *controls)]
+                unit = cn_module.cn_unit(p, *controls)
+                if unit is not None:
+                    cn_units = [unit]
             else:
                 p.control_net_enabled = False
 
