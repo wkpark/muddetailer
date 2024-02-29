@@ -2341,7 +2341,8 @@ class MuDetectionDetailerScript(scripts.Script):
             DD = MuDetectionDetailerScript
 
             for _id, is_txt2img in zip([DD.components["txt2img_generate"]._id, DD.components["img2img_generate"]._id], [True, False]):
-                dependencies = [x for x in demo.dependencies if x["trigger"] == "click" and _id in x["targets"]]
+                dependencies = [x for x in demo.dependencies if (("trigger" in x and x["trigger"] == "click" and _id in x["targets"]) or
+                                    ("trigger" not in x and isinstance(x["targets"][0], tuple) and "click" in x["targets"][0] and _id in x["targets"][0]))]
                 dependency = None
 
                 for d in dependencies:
