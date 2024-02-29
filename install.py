@@ -4,6 +4,7 @@ import sys
 
 from packaging import version
 from pathlib import Path
+from typing import Tuple, Optional
 
 import launch
 from launch import is_installed, run, run_pip
@@ -15,6 +16,17 @@ except Exception:
     skip_install = getattr(launch, "skip_install", False)
 
 python = sys.executable
+
+
+def comparable_version(version: str) -> Tuple:
+    return tuple(version.split("."))
+
+
+def get_installed_version(package: str) -> Optional[str]:
+    try:
+        return importlib.metadata.version(package)
+    except Exception:
+        return None
 
 
 def install():
