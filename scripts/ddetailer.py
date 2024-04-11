@@ -1433,7 +1433,7 @@ class MuDetectionDetailerScript(scripts.Script):
                         params = parse_prompt(geninfo)
                         # auto update masks info.
                         masks_a_json = params.get("MuDDetailer detection a", gr.update())
-                        masks_b_json = params.get("MuDDetailer detection a", gr.update())
+                        masks_b_json = params.get("MuDDetailer detection b", gr.update())
 
                         return geninfo, gr.update(interactive=True, variant="primary"), masks_a_json, masks_b_json
 
