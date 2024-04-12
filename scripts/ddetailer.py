@@ -2782,6 +2782,10 @@ class MuDetectionDetailerScript(scripts.Script):
         cn_module = get_controlnet_module()
         cn_controls = cn_module.get_cn_controls(dd_states)
 
+        # fix for sd-webui 1.9.0RC
+        p.extra_generation_params.pop("Hires prompt", None)
+        p.extra_generation_params.pop("Hires negative prompt", None)
+
         def cn_prepare(p, params=None, scripts=default_scripts):
             cn_units = None
             if cn_controls is not None or params is not None:
