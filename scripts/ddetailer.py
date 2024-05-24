@@ -2301,9 +2301,16 @@ class MuDetectionDetailerScript(scripts.Script):
             gal = []
             for g in gallery:
                 if type(g) is list:
-                    gal.append((g[0]["name"], g[1]))
+                    name = g[0]["name"]
+                    if name.find("?") > 0:
+                        name = name[:name.rfind("?")]
+                    gal.append((name, g[1]))
                 else:
-                    gal.append(g["name"])
+                    name = g["name"]
+                    if name.find("?") > 0:
+                        name = name[:name.rfind("?")]
+                    gal.append(name)
+
             if processed.censored_image is not None:
                 gal.append(processed.censored_image)
             else:
