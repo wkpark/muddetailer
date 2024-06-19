@@ -26,7 +26,7 @@ def is_face_upside_down(image, bbox, use_cuda=True, verbose=False):
 
     # Detect eyes within the face region
     eyes = model.detectMultiScale(face)
-    if len(eyes) < 2:
+    if len(eyes) < 1:
         print("eyes = ", len(eyes))
         # not detected eyes. in this case, the image is suspected to be upside down.
         return True
@@ -42,7 +42,7 @@ def is_face_upside_down(image, bbox, use_cuda=True, verbose=False):
     #flipped_eyes = model.detectMultiScale(flipped_face, 1.1, 3)
     flipped_eyes = model.detectMultiScale(flipped_face)
 
-    if len(flipped_eyes) < 2:
+    if len(flipped_eyes) < 1:
         # not detected eyes. in this case, the flipped image suspected to be upside down.
         print("flipped eyes = ", len(flipped_eyes))
         return False
