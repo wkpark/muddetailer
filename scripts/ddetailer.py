@@ -656,7 +656,8 @@ def _parse_controlnet_options(choices, remap=False):
                 outs[i] = bool(outs[i])
             elif k == "Control Mode":
                 if cn_module.external_code:
-                    outs[i] = cn_module.external_code.control_mode_from_value(outs[i])
+                    if getattr(cn_module.external_code, "control_mode_from_value", None) is not None:
+                        outs[i] = cn_module.external_code.control_mode_from_value(outs[i])
             elif k == "Resize Mode":
                 if cn_module.external_code:
                     outs[i] = cn_module.external_code.resize_mode_from_value(outs[i])

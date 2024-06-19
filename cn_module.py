@@ -199,10 +199,11 @@ def get_cn_extra_params(states):
     guidance_end = cn_states.get("guidance_end", 1)
     pixel_perfect = cn_states.get("pixel_perfect", True)
 
-    if isinstance(control_mode, str):
-        control_mode = external_code.control_mode_from_value(control_mode)
-    if isinstance(resize_mode, str):
-        resize_mode = external_code.resize_mode_from_value(resize_mode)
+    if getattr(external_code, "control_mode_from_value", None) is not None:
+        if isinstance(control_mode, str):
+            control_mode = external_code.control_mode_from_value(control_mode)
+        if isinstance(resize_mode, str):
+            resize_mode = external_code.resize_mode_from_value(resize_mode)
 
     params = {
         "Model": model,
@@ -241,13 +242,17 @@ def cn_unit(p, model, module, weight=1, guidance_start=0, guidance_end=1, contro
 def cn_control_mode(mode):
     if mode in ("BALANCED", "PROMPT", "CONTROL"):
         return external_code.ControlMode[mode]
-    return external_code.control_mode_from_value(mode)
+    if getattr(external_code, "control_mode_from_value", None) is not None:
+        return external_code.control_mode_from_value(mode)
+    return mode;
 
 
 def cn_resize_mode(mode):
     if mode in ("RESIZE", "INNER_FIT", "OUTER_FIT"):
         return external_code.ResizeMode[mode]
-    return external_code.resize_mode_from_value(mode)
+    if getattr(external_code, "control_mode_from_value", None) is not None:
+        return external_code.resize_mode_from_value(mode)
+    return mode;
 
 
 def cn_control_ui(is_img2img=False):
