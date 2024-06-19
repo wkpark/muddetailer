@@ -2944,6 +2944,11 @@ class MuDetectionDetailerScript(scripts.Script):
         if censor_params and censor_type in ["blur", "mosaic", "black"]:
             use_censored = True
 
+        # face upside-down
+        detect_upside_down = shared.opts.data.get("mudd_face_upside_down", False)
+        if detect_upside_down:
+            from scripts.detectors.face_upside_down import is_face_upside_down
+
         # gender fix
         use_gender_fix = shared.opts.data.get("mudd_use_gender_fix", False)
         male_prompt = shared.opts.data.get("mudd_male_prompt", "(1 boy)")
@@ -3149,13 +3154,30 @@ class MuDetectionDetailerScript(scripts.Script):
                             print(" - gender =", gender)
                             p.prompt = male_prompt + ", " + p.prompt
 
+                    # check upside down face
+                    is_face_flipped = None
+                    if detect_upside_down:
+                        bbox = results[1][i]
+                        is_face_flipped = is_face_upside_down(init_image, bbox)
+                        print(" - flipped face = ", is_face_flipped)
+
                     p.image_mask = masks[i]
                     if ( opts.mudd_save_masks):
                         images.save_image(masks[i], p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
 
+                    # rotate mask and image before process_images()
+                    if is_face_flipped:
+                        p.image_mask = masks[i].rotate(180)
+                        p.init_images = [init_image.rotate(180)]
+
                     processed = processing.process_images(p)
                     p.seed = processed.seed + 1
                     p.subseed = processed.subseed + 1
+
+                    # restore image orientation
+                    if is_face_flipped:
+                        processed.images[0] = processed.images[0].rotate(180)
+
                     p.init_images = [processed.images[0]]
 
                 self.cn_hijack_redo(p)
@@ -3778,6 +3800,7 @@ def on_ui_settings():
     shared.opts.add_option("mudd_selected_scripts", shared.OptionInfo(default_scripts, "Selected scripts to apply (comma separated)", section=section))
     shared.opts.add_option("mudd_use_gender_fix", shared.OptionInfo(False, "Use gender fix", section=section))
     shared.opts.add_option("mudd_male_prompt", shared.OptionInfo("(1 boy:1.2)", "Male prompt", section=section))
+    shared.opts.add_option("mudd_face_upside_down", shared.OptionInfo(False, "Detect upside-down face", section=section))
 
 
 def _create_segms(gray, bboxes):
