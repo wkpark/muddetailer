@@ -5,10 +5,11 @@ import cv2
 import numpy as np
 import torch
 
-model = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+#model = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+model = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye_tree_eyeglasses.xml')
 
 def is_face_upside_down(image, bbox, use_cuda=True, verbose=False):
-    debug = False
+    debug = True
     verbose = True
 
     image = np.array(image)
@@ -25,7 +26,8 @@ def is_face_upside_down(image, bbox, use_cuda=True, verbose=False):
 
     # Detect eyes within the face region
     eyes = model.detectMultiScale(face)
-    if len(eyes) != 2:
+    if len(eyes) < 2:
+        print("eyes = ", len(eyes))
         # not detected eyes. in this case, the image is suspected to be upside down.
         return True
 
@@ -33,17 +35,22 @@ def is_face_upside_down(image, bbox, use_cuda=True, verbose=False):
     if verbose:
         print("detected eyes y-pos=", eyes_ypos)
 
+    eyes_ypos = sorted(eyes_ypos, reverse=True)[:2]
+
     # detect eyes in the flipped face
     flipped_face = cv2.flip(face, 0)
+    #flipped_eyes = model.detectMultiScale(flipped_face, 1.1, 3)
     flipped_eyes = model.detectMultiScale(flipped_face)
 
-    if len(flipped_eyes) != 2:
+    if len(flipped_eyes) < 2:
         # not detected eyes. in this case, the flipped image suspected to be upside down.
+        print("flipped eyes = ", len(flipped_eyes))
         return False
 
     flipped_eyes_ypos = [eye[1] for eye in flipped_eyes]
     if verbose:
         print("detected flipped face's eyes y-pos=", flipped_eyes_ypos)
+    flipped_eyes_ypos = sorted(flipped_eyes_ypos, reverse=True)[:2]
 
     # Check if the face is upside down by comparing eyes positions
     if sum(flipped_eyes_ypos) * 0.5 > sum(eyes_ypos) * 0.5:
