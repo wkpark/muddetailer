@@ -2659,7 +2659,6 @@ class MuDetectionDetailerScript(scripts.Script):
             state.nextjob()
         else:
             p._fix_nextjob = False
-
         # get some global settings
         use_max_per_img = shared.opts.data.get("mudd_max_per_img", 20)
         # set max_per_img
@@ -2681,6 +2680,10 @@ class MuDetectionDetailerScript(scripts.Script):
             override_settings["sd_vae"] = vae
         if clipskip is not None:
             override_settings["CLIP_stop_at_last_layers"] = clipskip
+
+        orig_info = None
+        if shared.opts.data.get("mudd_save_original", False) and not p._inpainting:
+            orig_info = processing.create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, 0, 0)
 
         p_txt = copy(p)
 
@@ -3220,6 +3223,9 @@ class MuDetectionDetailerScript(scripts.Script):
             self._image_masks.append([])
 
         if len(output_images) > 0:
+            if shared.opts.data.get("mudd_save_original", False) and not p_txt._inpainting:
+                images.save_image(pp.image, p_txt.outpath_samples, "", p_txt.seed, p_txt.prompt, opts.samples_format, info=orig_info, p=p_txt)
+
             pp.image = output_images[0]
 
             # postprocess some stuff
@@ -3792,6 +3798,7 @@ def on_ui_settings():
         ),
     )
     default_scripts = "dynamic_prompting,forge_dynamic_thresholding,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
+    shared.opts.add_option("mudd_save_original", shared.OptionInfo(False, "Save original images before inpainting (ignored when running manually on pre-generated images)", section=section))
     shared.opts.add_option("mudd_save_previews", shared.OptionInfo(False, "Save mask previews", section=section))
     shared.opts.add_option("mudd_save_masks", shared.OptionInfo(False, "Save masks", section=section))
     shared.opts.add_option("mudd_import_adetailer", shared.OptionInfo(False, "Import ADetailer options", section=section))
