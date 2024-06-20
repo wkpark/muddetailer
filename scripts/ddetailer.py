@@ -3099,10 +3099,10 @@ class MuDetectionDetailerScript(scripts.Script):
                 masks = masks_a if dd_bitwise_op == "None" else masks_ab
                 label = label_a if dd_bitwise_op == "None" else label_ab
                 results = update_result_masks(results_a, masks)
-                segmask_preview = create_segmask_preview(results, init_image, select_masks_a)
-                shared.state.assign_current_image(segmask_preview)
+                segmask_preview_a = create_segmask_preview(results, init_image, select_masks_a)
+                shared.state.assign_current_image(segmask_preview_a)
                 if ( opts.mudd_save_previews):
-                    images.save_image(segmask_preview, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
+                    images.save_image(segmask_preview_a, p_txt.outpath_samples, "", start_seed, p.prompt, opts.samples_format, info=info, p=p)
 
                 if select_masks_a:
                     gen_selected = [i for i in select_masks_a if i < len(masks) and i >= 0]
