@@ -3201,7 +3201,9 @@ class MuDetectionDetailerScript(scripts.Script):
                     if is_face_flipped:
                         processed.images[0] = processed.images[0].rotate(180)
 
-                    p.init_images = [processed.images[0]]
+                    if len(processed.images) > 0:
+                        # replace
+                        p.init_images = [processed.images[0]]
 
                 self.cn_hijack_redo(p)
 
