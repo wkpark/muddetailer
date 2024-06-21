@@ -2554,7 +2554,7 @@ class MuDetectionDetailerScript(scripts.Script):
             processed.infotexts[0] = info
             processed.images[0].info["parameters"] = info
 
-        if len(self._image_masks) == 0 and len(self._init_images) == 0:
+        if len(self._image_masks) == 0 and getattr(self, "_init_images", None) is None:
             return
 
         grid_image = None
@@ -2567,7 +2567,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 grid_texts = processed.infotexts[0]
                 processed.infotexts = processed.infotexts[1:]
 
-        if len(self._init_images) > 0 and len(self._image_masks) == 0:
+        has_init_images = getattr(self, "_init_images", None)
+        if has_init_images and len(self._image_masks) == 0:
             # insert original images into results if available
             images = [[*orig, image] for orig, image in zip(self._init_images, processed.images)]
             processed.images = [image for sub in images for image in sub]
@@ -2575,7 +2576,7 @@ class MuDetectionDetailerScript(scripts.Script):
             infos = [[info] * (len(orig) + 1) for orig, info in zip(self._init_images, processed.infotexts)]
             processed.infotexts = [info for sub in infos for info in sub]
 
-        elif len(self._init_images) > 0 and len(self._image_masks) > 0:
+        elif has_init_images and len(self._image_masks) > 0:
             # insert original images and any masks into results if available
             images = [[*masks, *orig, image] for orig, masks, image in zip(self._init_images, self._image_masks, processed.images)]
             processed.images = [image for sub in images for image in sub]
