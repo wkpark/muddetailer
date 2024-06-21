@@ -2536,6 +2536,9 @@ class MuDetectionDetailerScript(scripts.Script):
         self._image_masks = []
         if shared.opts.data.get("mudd_show_original", False) and not getattr(p, "_inpainting", False):
             self._init_images = []
+        elif getattr(self, "_init_images", None) is not None:
+            # reset
+            del self._init_images
 
 
     def postprocess(self, p, processed, *args):
@@ -3251,7 +3254,7 @@ class MuDetectionDetailerScript(scripts.Script):
             if shared.opts.data.get("mudd_save_original", False) and not p_txt._inpainting:
                 images.save_image(pp.image, p_txt.outpath_samples, "", p_txt.seed, p_txt.prompt, opts.samples_format, info=orig_info, p=p_txt)
 
-            if shared.opts.data.get("mudd_show_original", False) and not p_txt._inpainting:
+            if getattr(self, "_init_images", None) is not None and not p_txt._inpainting:
                 self._init_images[-1].append(pp.image)
 
             pp.image = output_images[0]
