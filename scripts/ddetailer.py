@@ -2534,11 +2534,7 @@ class MuDetectionDetailerScript(scripts.Script):
             return
 
         self._image_masks = []
-        if shared.opts.data.get("mudd_show_original", False) and not getattr(p, "_inpainting", False):
-            self._init_images = []
-        elif getattr(self, "_init_images", None) is not None:
-            # reset
-            del self._init_images
+        self._init_images = []
 
 
     def postprocess(self, p, processed, *args):
@@ -2557,7 +2553,9 @@ class MuDetectionDetailerScript(scripts.Script):
             processed.infotexts[0] = info
             processed.images[0].info["parameters"] = info
 
-        if len(self._image_masks) == 0 and getattr(self, "_init_images", None) is None:
+        masks_count = sum([len(mask) for mask in self._image_masks])
+        inits_count = sum([len(init) for init in self._init_images])
+        if masks_count == 0 and inits_count == 0:
             return
 
         grid_image = None
@@ -2570,28 +2568,12 @@ class MuDetectionDetailerScript(scripts.Script):
                 grid_texts = processed.infotexts[0]
                 processed.infotexts = processed.infotexts[1:]
 
-        has_init_images = getattr(self, "_init_images", None)
-        if has_init_images and len(self._image_masks) == 0:
-            # insert original images into results if available
-            images = [[*orig, image] for orig, image in zip(self._init_images, processed.images)]
-            processed.images = [image for sub in images for image in sub]
-            # copy infotext to original images
-            infos = [[info] * (len(orig) + 1) for orig, info in zip(self._init_images, processed.infotexts)]
-            processed.infotexts = [info for sub in infos for info in sub]
-
-        elif has_init_images and len(self._image_masks) > 0:
+        if masks_count > 0 or inits_count > 0:
             # insert original images and any masks into results if available
             images = [[*masks, *orig, image] for orig, masks, image in zip(self._init_images, self._image_masks, processed.images)]
             processed.images = [image for sub in images for image in sub]
             # copy infotext to original images and masks
             infos = [[info] * (len(masks) + len(orig) + 1) for orig, masks, info in zip(self._init_images, self._image_masks, processed.infotexts)]
-            processed.infotexts = [info for sub in infos for info in sub]
-        else:
-            # insert any masks into results if available
-            images = [[*masks, image] for masks, image in zip(self._image_masks, processed.images)]
-            processed.images = [image for sub in images for image in sub]
-            # copy infotext to mask images
-            infos = [[info] * (len(masks) + 1) for masks, info in zip(self._image_masks, processed.infotexts)]
             processed.infotexts = [info for sub in infos for info in sub]
 
         if grid_image is not None:
@@ -3243,18 +3225,16 @@ class MuDetectionDetailerScript(scripts.Script):
         processed.censored_image = censored_image
 
         # append masks if needed case
-        if getattr(self, "_image_masks", None) is not None:
-            self._image_masks.append([])
+        self._image_masks.append([])
 
         # original images holder
-        if getattr(self, "_init_images", None) is not None:
-            self._init_images.append([])
+        self._init_images.append([])
 
         if len(output_images) > 0:
             if shared.opts.data.get("mudd_save_original", False) and not p_txt._inpainting:
                 images.save_image(pp.image, p_txt.outpath_samples, "", p_txt.seed, p_txt.prompt, opts.samples_format, info=orig_info, p=p_txt)
 
-            if getattr(self, "_init_images", None) is not None and not p_txt._inpainting:
+            if state.job_count != save_jobcount and not p_txt._inpainting:
                 self._init_images[-1].append(pp.image)
 
             pp.image = output_images[0]
