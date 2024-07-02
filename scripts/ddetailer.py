@@ -2957,37 +2957,6 @@ class MuDetectionDetailerScript(scripts.Script):
             if len(override_settings) > 0:
                 p.override_settings = p.override_settings.update(override_settings)
 
-        def _controlnet_params(p, params):
-            if params is None:
-                return
-
-            # parse and set/load default
-            params = (tuple(setting.split(":", 1)) for setting in params)
-            params = dict((x, y.strip()) for x, y in params)
-            params = prepare_load_preset(params)
-
-            sampler =  params.get("Sampler", None)
-            if sampler is not None and sampler in ["None", "Default", "Use same sampler"]:
-                params.pop("Sampler")
-            scheduler =  params.get("Scheduler", None)
-            if scheduler is not None and scheduler in ["None", "Default", "Use same scheduler"]:
-                params.pop("Scheduler")
-
-            override_map = (
-                ("Mask blur", "mask_blur"),
-                ("Denoising", "denoising_strength"),
-                ("Inpaint full", "inpaint_full_res"),
-                ("Inpaint padding", "inpaint_full_res_padding"),
-                ("Inpaint width", "width"),
-                ("Inpaint height", "height"),
-                ("Sampler", "sampler_name"),
-                ("Scheduler", "scheduler"),
-                ("Steps", "steps"),
-                ("Noise multiplier", "initial_noise_multiplier"),
-                ("CFG scale", "cfg_scale"),
-            )
-
-
         # check censored style
         use_censored = False
         censor_params = dd_states.get("censored", {})
