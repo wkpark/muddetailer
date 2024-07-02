@@ -278,6 +278,16 @@ def compat_model_hash(modelname):
     return gr.update(value=modelname)
 
 
+def get_schedulers():
+    try:
+        # webui >= 1.9.0
+        from modules.sd_schedulers import schedulers
+    except ImportError:
+        return []
+
+    return [sch.label for sch in schedulers]
+
+
 def startup():
     import torch
 
@@ -429,7 +439,7 @@ def ddetailer_extra_params(
     dd_inpaint_full_res, dd_inpaint_full_res_padding,
     dd_inpaint_width, dd_inpaint_height,
     dd_cfg_scale, dd_steps, dd_noise_multiplier,
-    dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+    dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip,
     dd_states,
 ):
     cn_module = get_controlnet_module()
@@ -458,6 +468,7 @@ def ddetailer_extra_params(
         "MuDDetailer steps": dd_steps,
         "MuDDetailer noise multiplier": dd_noise_multiplier,
         "MuDDetailer sampler": dd_sampler,
+        "MuDDetailer scheduler": dd_scheduler,
         "MuDDetailer checkpoint": dd_checkpoint,
         "MuDDetailer VAE": dd_vae,
         "MuDDetailer CLIP skip": dd_clipskip,
@@ -502,6 +513,8 @@ def ddetailer_extra_params(
         params.pop("MuDDetailer VAE")
     if dd_sampler in [ "Use same sampler", "Default", "None" ]:
         params.pop("MuDDetailer sampler")
+    if dd_scheduler in [ "Use same scheduler", "Default", "None" ]:
+        params.pop("MuDDetailer scheduler")
 
     # setup from dd_states
     params_a = dd_states.get("inpaint a", None)
@@ -536,7 +549,7 @@ def ddetailer_extra_params(
     return params
 
 
-def import_inpainting_options(mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding, inpaint_width, inpaint_height, sampler, steps, noise_multiplier, cfg_scale, checkpoint, vae, clipskip):
+def import_inpainting_options(mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding, inpaint_width, inpaint_height, sampler, scheduler, steps, noise_multiplier, cfg_scale, checkpoint, vae, clipskip):
     params = {
         "Mask blur": mask_blur,
         "Denoising": denoising_strength,
@@ -550,6 +563,8 @@ def import_inpainting_options(mask_blur, denoising_strength, inpaint_full_res, i
         params["Inpaint height"] = inpaint_height
     if sampler not in ["None", "Use same sampler"]:
         params["Sampler"] = sampler
+    if scheduler not in ["None", "Use same scheduler"]:
+        params["Scheduler"] = scheduler
     if steps > 0:
         params["Steps"] = steps
 
@@ -577,6 +592,7 @@ def export_inpainting_options(choices):
         "Inpaint width": 0,
         "Inpaint height": 0,
         "Sampler": "Use same sampler",
+        "Scheduler": "Use same scheduler",
         "Steps": 0,
         "Noise multiplier": 0,
         "CFG scale": 0,
@@ -745,6 +761,7 @@ def prepare_load_preset(params):
         "Inpaint width": 0,
         "Inpaint height": 0,
         "Sampler": "Use same sampler",
+        "Scheduler": "Use same scheduler",
         "Steps": 0,
         "Noise multiplier": 0,
         "CFG scale": 0,
@@ -1214,17 +1231,15 @@ class MuDetectionDetailerScript(scripts.Script):
                     )
 
                     with gr.Accordion("Advanced inpaint options", open=False) as advanced:
-                      gr.HTML(value="<p>Low level inpaint options ('0' or 'Use same..' means use the same setting values)</p>")
-                      with gr.Row():
+                        gr.HTML(value="<p>Low level inpaint options ('0' or 'Use same..' means use the same setting values)</p>")
                         with gr.Column(variant="compact"):
                             with gr.Row():
                                 dd_sampler = gr.Dropdown(label='Sampling method', choices=["Use same sampler"] + sampler_names, value="Use same sampler", min_width=200)
-                                dd_steps = gr.Slider(label='Sampling steps', minimum=0, maximum=120, step=1, value=0, min_width=200)
-                        with gr.Column(variant="compact"):
+                                scheduler_types = get_schedulers()
+                                dd_scheduler = gr.Dropdown(label='Scheduler type', choices=["Use same scheduler"] + scheduler_types, value="Use same scheduler", visible=len(scheduler_types) > 0, min_width=200)
                             with gr.Row():
-                                dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=200)
+                                dd_steps = gr.Slider(label='Sampling steps', minimum=0, maximum=120, step=1, value=0, min_width=200)
                                 dd_cfg_scale = gr.Slider(label='CFG Scale', minimum=0, maximum=30, step=0.5, value=0, min_width=200)
-                      with gr.Column(variant="compact"):
                         with gr.Row():
                             dd_checkpoint = gr.Dropdown(label='Use Checkpoint', choices=["Use same checkpoint"] + sd_models.checkpoint_tiles(), value="Use same checkpoint", min_width=155)
                             create_refresh_button(dd_checkpoint, dd_list_models, lambda: {"choices": ["Use same checkpoint"] + sd_models.checkpoint_tiles()},"dd_refresh_checkpoint")
@@ -1232,9 +1247,9 @@ class MuDetectionDetailerScript(scripts.Script):
                             dd_vae = gr.Dropdown(choices=["Use same VAE"] + list(sd_vae.vae_dict), value="Use same VAE", label="Use VAE", elem_id="dd_vae", min_width=155)
                             create_refresh_button(dd_vae, sd_vae.refresh_vae_list, lambda: {"choices": ["Use same VAE"] + list(sd_vae.vae_dict)}, "dd_refresh_vae")
 
-                      with gr.Column(variant="compact"):
-                        dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
-                      with gr.Column():
+                        with gr.Row():
+                            dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
+                            dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=200)
                         with gr.Row():
                             advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
                         advanced_reset.select(
@@ -1244,17 +1259,18 @@ class MuDetectionDetailerScript(scripts.Script):
                                 dd_steps: 0,
                                 dd_clipskip: 0,
                                 dd_sampler: "Use same sampler",
+                                dd_scheduler: "Use same scheduler",
                                 dd_checkpoint: "Use same checkpoint",
                                 dd_vae: "Use same VAE",
                                 advanced_reset: False,
                             },
                             inputs=[],
-                            outputs=[advanced_reset, dd_noise_multiplier, dd_cfg_scale, dd_sampler, dd_steps, dd_checkpoint, dd_vae, dd_clipskip],
+                            outputs=[advanced_reset, dd_noise_multiplier, dd_cfg_scale, dd_sampler, dd_scheduler, dd_steps, dd_checkpoint, dd_vae, dd_clipskip],
                             show_progress=False,
                         )
 
                     all_inpainting_options = [dd_mask_blur, dd_denoising_strength, dd_inpaint_full_res, dd_inpaint_full_res_padding,
-                        dd_inpaint_width, dd_inpaint_height, dd_sampler, dd_steps, dd_noise_multiplier, dd_cfg_scale,
+                        dd_inpaint_width, dd_inpaint_height, dd_sampler, dd_scheduler, dd_steps, dd_noise_multiplier, dd_cfg_scale,
                         dd_checkpoint, dd_vae, dd_clipskip]
 
                     import_inpainting_a.click(
@@ -1684,6 +1700,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 (dd_noise_multiplier, "MuDDetailer noise multiplier"),
                 (dd_clipskip, "MuDDetailer CLIP skip"),
                 (dd_sampler, "MuDDetailer sampler"),
+                (dd_scheduler, "MuDDetailer scheduler"),
                 (dd_checkpoint, "MuDDetailer checkpoint"),
                 (dd_vae, "MuDDetailer VAE"),
                 (dd_inpainting_options_a, "MuDDetailer inpaint a"),
@@ -1790,6 +1807,15 @@ class MuDetectionDetailerScript(scripts.Script):
                 show_progress=False,
             )
 
+            dd_scheduler.change(
+                lambda value: {
+                    advanced:gr_open(True) if advanced.open is False and value not in [ "Use same scheduler", "Default", "None" ] else gr.update()
+                },
+                inputs=[dd_scheduler],
+                outputs=[advanced],
+                show_progress=False,
+            )
+
             dd_clipskip.change(
                 lambda value: {
                     advanced:gr_open(True) if advanced.open is False and value > 0 else gr.update()
@@ -1810,7 +1836,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 prompt_2, neg_prompt_2,
                 mask_blur, denoising_strength, inpaint_full_res, inpaint_full_res_padding,
                 inpaint_width, inpaint_height, cfg_scale, steps, noise_multiplier,
-                sampler, checkpoint, vae, clipskip,
+                sampler, scheduler, checkpoint, vae, clipskip,
                 inpainting_options_a, inpainting_options_b):
 
             params = {
@@ -1872,6 +1898,8 @@ class MuDetectionDetailerScript(scripts.Script):
                 params["Inpaint height"] = inpaint_height
             if sampler not in ["None", "Use same sampler"]:
                 params["Sampler"] = sampler
+            if scheduler not in ["None", "Use same scheduler"]:
+                params["Scheduler"] = scheduler
             if steps > 0:
                 params["Steps"] = steps
 
@@ -2005,10 +2033,10 @@ class MuDetectionDetailerScript(scripts.Script):
                     dd_inpaint_full_res, dd_inpaint_full_res_padding,
                     dd_inpaint_width, dd_inpaint_height,
                     dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                    dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+                    dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip,
                     dd_states,
         ]
-        # 31 arguments
+        # 41 arguments
 
         def save_preset_settings(preset, settings, overwrite=False):
             # check already have
@@ -2645,7 +2673,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states):
+                     dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip, dd_states):
 
         p._idx = getattr(p, "_idx", -1) + 1
         p._inpainting = getattr(p, "_inpainting", False)
@@ -2672,6 +2700,10 @@ class MuDetectionDetailerScript(scripts.Script):
         sampler_name = dd_sampler if dd_sampler not in [ "Use same sampler", "Default", "None" ] else p.sampler_name
         if sampler_name in ["PLMS", "UniPC"]:
             sampler_name = "Euler"
+
+        scheduler_type = None
+        if getattr(p, "scheduler", None):
+            scheduler_type = dd_scheduler if dd_scheduler not in [ "Use same scheduler", "Default", "None" ] else p.scheduler
 
         # setup override settings
         checkpoint = dd_checkpoint if dd_checkpoint not in [ "Use same checkpoint", "Default", "None" ] else None
@@ -2729,7 +2761,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_inpaint_full_res, dd_inpaint_full_res_padding,
             dd_inpaint_width, dd_inpaint_height,
             dd_cfg_scale, dd_steps, dd_noise_multiplier,
-            dd_sampler, dd_checkpoint, dd_vae, dd_clipskip,
+            dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip,
             dd_states,
         )
         p_txt.extra_generation_params.update(extra_params)
@@ -2776,6 +2808,9 @@ class MuDetectionDetailerScript(scripts.Script):
             )
         p.cached_c = [None, None]
         p.cached_uc = [None, None]
+
+        if getattr(p, "scheduler", None) and scheduler_type:
+            p.scheduler = scheduler_type
 
         default_scripts = "dynamic_prompting,forge_dynamic_thresholding,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
         default_scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
@@ -2884,6 +2919,10 @@ class MuDetectionDetailerScript(scripts.Script):
             if sampler is not None and sampler in ["None", "Default", "Use same sampler"]:
                 params.pop("Sampler")
 
+            scheduler =  params.get("Scheduler", None)
+            if scheduler is not None and scheduler in ["None", "Default", "Use same scheduler"]:
+                params.pop("Scheduler")
+
             override_map = (
                 ("Mask blur", "mask_blur"),
                 ("Denoising", "denoising_strength"),
@@ -2892,6 +2931,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 ("Inpaint width", "width"),
                 ("Inpaint height", "height"),
                 ("Sampler", "sampler_name"),
+                ("Scheduler", "scheduler"),
                 ("Steps", "steps"),
                 ("Noise multiplier", "initial_noise_multiplier"),
                 ("CFG scale", "cfg_scale"),
@@ -2929,6 +2969,9 @@ class MuDetectionDetailerScript(scripts.Script):
             sampler =  params.get("Sampler", None)
             if sampler is not None and sampler in ["None", "Default", "Use same sampler"]:
                 params.pop("Sampler")
+            scheduler =  params.get("Scheduler", None)
+            if scheduler is not None and scheduler in ["None", "Default", "Use same scheduler"]:
+                params.pop("Scheduler")
 
             override_map = (
                 ("Mask blur", "mask_blur"),
@@ -2938,6 +2981,7 @@ class MuDetectionDetailerScript(scripts.Script):
                 ("Inpaint width", "width"),
                 ("Inpaint height", "height"),
                 ("Sampler", "sampler_name"),
+                ("Scheduler", "scheduler"),
                 ("Steps", "steps"),
                 ("Noise multiplier", "initial_noise_multiplier"),
                 ("CFG scale", "cfg_scale"),
@@ -3315,7 +3359,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states) = (*_args,)
+                     dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip, dd_states) = (*_args,)
         else:
             # for API
             args = _args[0]
@@ -3360,6 +3404,7 @@ class MuDetectionDetailerScript(scripts.Script):
             dd_steps = args.get("steps", 0)
             dd_noise_multiplier = args.get("noise multiplier", 0)
             dd_sampler = args.get("sampler", "None")
+            dd_scheduler = args.get("scheduler", "None")
             dd_checkpoint = args.get("checkpoint", "None")
             dd_vae = args.get("VAE", "None")
             dd_clipskip = args.get("CLIP skip", 0)
@@ -3415,7 +3460,7 @@ class MuDetectionDetailerScript(scripts.Script):
                      dd_inpaint_full_res, dd_inpaint_full_res_padding,
                      dd_inpaint_width, dd_inpaint_height,
                      dd_cfg_scale, dd_steps, dd_noise_multiplier,
-                     dd_sampler, dd_checkpoint, dd_vae, dd_clipskip, dd_states)
+                     dd_sampler, dd_scheduler, dd_checkpoint, dd_vae, dd_clipskip, dd_states)
 
         p.close()
 
