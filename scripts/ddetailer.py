@@ -2412,15 +2412,28 @@ class MuDetectionDetailerScript(scripts.Script):
             DD = MuDetectionDetailerScript
 
             for _id, is_txt2img in zip([DD.components["txt2img_generate"]._id, DD.components["img2img_generate"]._id], [True, False]):
-                dependencies = [x for x in demo.dependencies if (("trigger" in x and x["trigger"] == "click" and _id in x["targets"]) or
+                if hasattr(demo, "dependencies"):
+                    dependencies = [x for x in demo.dependencies if (("trigger" in x and x["trigger"] == "click" and _id in x["targets"]) or
                                     ("trigger" not in x and isinstance(x["targets"][0], tuple) and "click" in x["targets"][0] and _id in x["targets"][0]))]
+                else: # gradio4
+                    dependencies = [{"js": x.js, "inputs": [b._id for b in x.inputs]} for x in demo.fns.values() if (_id, "click") in x.targets and x.js is not None]
                 dependency = None
 
                 for d in dependencies:
                     if "js" in d and d["js"] in [ "submit", "submit_img2img", "submit_txt2img" ]:
                         dependency = d
 
-                params = [params for params in demo.fns if compare_components_with_ids(params.inputs, dependency["inputs"])]
+                if dependency is None:
+                    for d in dependencies:
+                        if any(js in d["js"] for js in [ "submit(", "submit_img2img(", "submit_txt2img("]): # fix for webui-forge
+                            dependency = d
+                    if dependency is None:
+                        continue
+
+                if hasattr(demo, "dependencies"):
+                    params = [params for params in demo.fns if compare_components_with_ids(params.inputs, dependency["inputs"])]
+                else: # gradio4
+                    params = [params for params in demo.fns.values() if compare_components_with_ids(params.inputs, dependency["inputs"])]
 
                 if is_txt2img:
                     DD.components["txt2img_elem_ids"] = [x.elem_id if hasattr(x,"elem_id") else "None" for x in params[0].inputs]
