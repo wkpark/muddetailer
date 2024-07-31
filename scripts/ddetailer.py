@@ -1249,7 +1249,7 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Row():
                             dd_clipskip = gr.Slider(label='Use Clip skip', minimum=0, maximum=12, step=1, value=0, min_width=140)
-                            dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_with=200)
+                            dd_noise_multiplier = gr.Slider(label='Noise multiplier', minimum=0, maximum=1.5, step=0.01, value=0, min_width=200)
                         with gr.Row():
                             advanced_reset = gr.Checkbox(label="Reset advanced options", value=False, elem_id="dd_advanced_reset")
                         advanced_reset.select(
@@ -1412,13 +1412,13 @@ class MuDetectionDetailerScript(scripts.Script):
 
                         with gr.Group(visible=True) as select_group_a:
                             with gr.Row():
-                                labels_a = gr.Dropdown(label="Detected masks", choices=[], values=[], multiselect=True, interactive=True)
+                                labels_a = gr.Dropdown(label="Detected masks", choices=[], value=[], multiselect=True, interactive=True)
                             with gr.Row():
                                 select_options_a = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
                                 masks_a = gr.Textbox(label="Detected masks", value="", visible=False, elem_id="mudd_masks_a_" + tabname)
                         with gr.Group(visible=False) as select_group_b:
                             with gr.Row():
-                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], values=[], multiselect=True, interactive=True)
+                                labels_b = gr.Dropdown(label="Detected masks (B)", choices=[], value=[], multiselect=True, interactive=True)
                             with gr.Row():
                                 select_options_b = gr.CheckboxGroup(choices=["sync", "detect only"], value=["sync"], label="", show_label=False, interactive=True)
                                 masks_b = gr.Textbox(label="Detected masks (B)", value="", visible=False, elem_id="mudd_masks_b_" + tabname)
