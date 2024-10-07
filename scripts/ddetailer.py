@@ -2825,6 +2825,11 @@ class MuDetectionDetailerScript(scripts.Script):
         if hasattr(p, "scheduler") and scheduler_type:
             p.scheduler = scheduler_type
 
+        # forge case
+        if hasattr(p, "distilled_cfg_scale"):
+            p.cached_c = [None, None, None]
+            p.cached_uc = [None, None, None]
+
         default_scripts = "dynamic_prompting,forge_dynamic_thresholding,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
         default_scripts = shared.opts.data.get("mudd_selected_scripts", default_scripts)
 
@@ -3069,6 +3074,11 @@ class MuDetectionDetailerScript(scripts.Script):
                 p2.cached_c = [None, None]
                 p2.cached_uc = [None, None]
 
+                # forge
+                if hasattr(p2, "distilled_cfg_scale"):
+                    p2.cached_c = [None, None, None]
+                    p2.cached_uc = [None, None, None]
+
                 p2.seed = start_seed
                 p2.init_images = [init_image]
 
@@ -3162,6 +3172,11 @@ class MuDetectionDetailerScript(scripts.Script):
                 # reset cache
                 p.cached_c = [None, None]
                 p.cached_uc = [None, None]
+
+                # forge case
+                if hasattr(p, "distilled_cfg_scale"):
+                    p.cached_c = [None, None, None]
+                    p.cached_uc = [None, None, None]
 
                 p.seed = start_seed
                 p.init_images = [init_image]
