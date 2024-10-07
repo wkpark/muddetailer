@@ -2822,7 +2822,7 @@ class MuDetectionDetailerScript(scripts.Script):
         p.cached_c = [None, None]
         p.cached_uc = [None, None]
 
-        if getattr(p, "scheduler", None) and scheduler_type:
+        if hasattr(p, "scheduler") and scheduler_type:
             p.scheduler = scheduler_type
 
         default_scripts = "dynamic_prompting,forge_dynamic_thresholding,dynamic_thresholding,wildcards,wildcard_recursive,lora_block_weight,cdtuner,negpip"
