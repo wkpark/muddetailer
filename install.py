@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 import sys
 
 from packaging import version
@@ -67,13 +68,43 @@ def install():
             if not is_installed("mmengine"):
                 run_pip(f"install mmengine==0.8.5", desc="mmengine")
             # mmyolo depends on mmcv==2.0.0 but pytorch 2.1.0 only work with mmcv 2.1.0
-            if version.parse(torch_version) >= version.parse("2.1.0"):
+            if version.parse(torch_version) >= version.parse("2.2.0"):
+                run(f'"{python}" -m mim install mmcv~=2.2.0', desc="Installing mmcv", errdesc="Couldn't install mmcv 2.2.0")
+            elif version.parse(torch_version) >= version.parse("2.1.0"):
                 run(f'"{python}" -m mim install mmcv~=2.1.0', desc="Installing mmcv", errdesc="Couldn't install mmcv 2.1.0")
             else:
                 run(f'"{python}" -m mim install mmcv~=2.0.0', desc="Installing mmcv", errdesc="Couldn't install mmcv")
             run(f'"{python}" -m mim install -U mmdet>=3.0.0', desc="Installing mmdet", errdesc="Couldn't install mmdet")
 
             run_pip(f"install mmdet>=3", desc="mmdet")
+
+
+    def fix_mmcv_version(filepath):
+        """patch mmcv_maximum_version"""
+        out = []
+        ver = "0.0.0"
+        with open(filepath, "r+") as f:
+            while (line:= f.readline()):
+                line = line.strip()
+                if line.startswith("mmcv_maximum_version = "):
+                    tmp = line.split("=")[1].strip("' ").split(".")
+                    if len(tmp) == 3:
+                        tag = tmp[2][1:]
+                        tmp[2] = tmp[2][0]
+                        if int(tmp[1]) < 2:
+                            tmp[1] = str(int(tmp[1]) + 1)
+                        tmp[2] = str(int(tmp[2]) + 1) + tag
+                        ver = ".".join(tmp)
+                        line = f"mmcv_maximum_version = '{ver}'\n"
+                    else:
+                        return ".".join(tmp)
+                out.append(line.strip())
+
+            f.seek(0)
+            f.truncate(0)
+            f.write("\n".join(out))
+        return ver
+
 
     mmcv_version = None
     try:
@@ -83,8 +114,26 @@ def install():
     if mmcv_version:
         print("Check mmcv version...")
         if version.parse(mmcv_version) >= version.parse("2.0.1"):
-            print(f"Your mmcv version {mmcv_version} may not work with mmyolo.")
-            print("or you need to fix version restriction of __init__.py of mmyolo manually, to use mmcv 2.1.0 with mmyolo.")
+            print("need to check mmcv version in the __init__.py...")
+
+            fixed_version = mmcv_version
+            for p in sys.path:
+                if os.path.exists(os.path.join(p, "mmyolo")) and os.path.exists(os.path.join(p, "mmyolo", "__init__.py")):
+                    if not os.path.exists(os.path.join(p, "mmyolo", "__init__.py.bak")):
+                        shutil.copy(os.path.join(p, "mmyolo", "__init__.py"), os.path.join(p, "mmyolo", "__init__.py.bak"))
+                        fixed_version = fix_mmcv_version(os.path.join(p, "mmyolo", "__init__.py"))
+                if os.path.exists(os.path.join(p, "mmdet")) and os.path.exists(os.path.join(p, "mmdet", "__init__.py")):
+                    if not os.path.exists(os.path.join(p, "mmdet", "__init__.py.bak")):
+                        shutil.copy(os.path.join(p, "mmdet", "__init__.py"), os.path.join(p, "mmdet", "__init__.py.bak"))
+                        fixed_version = fix_mmcv_version(os.path.join(p, "mmdet", "__init__.py"))
+
+            if fixed_version == mmcv_version:
+                pass
+            elif version.parse(fixed_version) > version.parse(mmcv_version):
+                print("mmcv maximum version automatically fixed! (it may not work with the latest mmcv)")
+            else:
+                print(f"Your mmcv version {mmcv_version} may not work with the mmyolo/mmdet")
+                print("or you need to fix version restriction of __init__.py of the mmyolo/mndet manually to use mmcv {mmcv_version}.")
 
     mmengine_version = None
     try:
@@ -93,7 +142,7 @@ def install():
         pass
     if mmengine_version:
         print("Check mmengine version...")
-        if version.parse(mmengine_version) >= version.parse("0.9.0"):
+        if version.parse(mmengine_version) >= version.parse("0.9.0") and version.parse(mmengine_version) < version.parse("0.10.0"):
             print(f"Your mmengine version {mmengine_version} may not work on windows...")
             print("Please install mmengine 0.8.5 manually or install latest bitsandbytes >= 0.43.0 or un-official patched version of bitsandbytes-windows.")
             #print("Uninstalling mmengine...")
