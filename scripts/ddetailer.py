@@ -2221,7 +2221,7 @@ class MuDetectionDetailerScript(scripts.Script):
             # image from gr.Image() or gr.Gallery()
             image = input if input is not None else import_image_from_gallery(gallery, gallery_idx)
             if image is None:
-                return gr.update(), gr.update(), generation_info, "No input image found"
+                raise gr.Error("No matched model found.")
 
             # convert to RGB
             image = image.convert("RGB")
@@ -2819,14 +2819,14 @@ class MuDetectionDetailerScript(scripts.Script):
                 extra_generation_params=p_txt.extra_generation_params,
                 override_settings=override_settings,
             )
-        p.cached_c = [None, None]
-        p.cached_uc = [None, None]
+        p.cached_c = p_txt.cached_c
+        p.cached_uc = p_txt.cached_uc
 
         if hasattr(p, "scheduler") and scheduler_type:
             p.scheduler = scheduler_type
 
         # forge case
-        if hasattr(p, "distilled_cfg_scale"):
+        if hasattr(p, "distilled_cfg_scale") and len(p.cached_c) == 2:
             p.cached_c = [None, None, None]
             p.cached_uc = [None, None, None]
 
@@ -3071,11 +3071,11 @@ class MuDetectionDetailerScript(scripts.Script):
                     elif cn_controls is not None and "hand" in dd_model_b and "hand_refiner" in cn_controls[1]:
                         cn_prepare(p2)
                 # reset cache
-                p2.cached_c = [None, None]
-                p2.cached_uc = [None, None]
+                p2.cached_c = p_txt.cached_c
+                p2.cached_uc = p_txt.cached_uc
 
                 # forge
-                if hasattr(p2, "distilled_cfg_scale"):
+                if hasattr(p2, "distilled_cfg_scale") and len(p2.cached_c) == 2:
                     p2.cached_c = [None, None, None]
                     p2.cached_uc = [None, None, None]
 
@@ -3170,11 +3170,11 @@ class MuDetectionDetailerScript(scripts.Script):
                             cn_prepare(p)
 
                 # reset cache
-                p.cached_c = [None, None]
-                p.cached_uc = [None, None]
+                p.cached_c = p_txt.cached_c
+                p.cached_uc = p_txt.cached_uc
 
                 # forge case
-                if hasattr(p, "distilled_cfg_scale"):
+                if hasattr(p, "distilled_cfg_scale") and len(p.cached_c) == 2:
                     p.cached_c = [None, None, None]
                     p.cached_uc = [None, None, None]
 
