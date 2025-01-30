@@ -2853,6 +2853,7 @@ class MuDetectionDetailerScript(scripts.Script):
         # fix for sd-webui 1.9.0RC
         p.extra_generation_params.pop("Hires prompt", None)
         p.extra_generation_params.pop("Hires negative prompt", None)
+        p.extra_generation_params.pop("Denoising strength", None)
 
         def cn_prepare(p, params=None, scripts=default_scripts):
             cn_units = None
@@ -3255,8 +3256,9 @@ class MuDetectionDetailerScript(scripts.Script):
         if len(masks_params) > 0:
             p_txt.extra_generation_params.update(masks_params)
 
-        if p_txt.extra_generation_params.get("Noise multiplier") is not None:
-            p_txt.extra_generation_params.pop("Noise multiplier")
+        for k in ["Noise multiplier", "Denoising strength"]:
+            if p_txt.extra_generation_params.get(k) is not None:
+                p_txt.extra_generation_params.pop(k)
 
         info = processing.create_infotext(p_txt, p_txt.all_prompts, p_txt.all_seeds, p_txt.all_subseeds, None, 0, 0)
 
